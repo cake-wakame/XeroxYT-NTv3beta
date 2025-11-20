@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { getChannelDetails, getChannelVideos, getChannelHome, mapHomeVideoToVideo } from '../utils/api';
@@ -167,7 +168,7 @@ const ChannelPage: React.FC = () => {
                 {/* Featured Video */}
                 {homeData.topVideo && (
                     <div className="flex flex-col md:flex-row gap-4 md:gap-6 border-b border-yt-spec-light-20 dark:border-yt-spec-20 pb-6">
-                         <div className="w-full md:w-1/2 lg:w-[400px] aspect-video rounded-xl overflow-hidden flex-shrink-0">
+                         <div className="w-full md:w-[360px] lg:w-[420px] aspect-video rounded-xl overflow-hidden flex-shrink-0">
                             <Link to={`/watch/${homeData.topVideo.videoId}`}>
                                 <img src={homeData.topVideo.thumbnail} alt={homeData.topVideo.title} className="w-full h-full object-cover" />
                             </Link>

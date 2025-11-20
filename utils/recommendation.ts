@@ -43,6 +43,10 @@ const parseDurationToSeconds = (isoDuration: string): number => {
     return h * 3600 + m * 60 + s;
 };
 
+const containsJapanese = (text: string): boolean => {
+    return /[一-龠]+|[ぁ-ゔ]+|[ァ-ヴー]+/.test(text);
+}
+
 interface RecommendationSource {
     searchHistory: string[];
     watchHistory: Video[];
@@ -80,7 +84,13 @@ const validateVideo = (
     const lowerChannel = video.channelName.toLowerCase();
     const fullText = `${lowerTitle} ${lowerDesc} ${lowerChannel}`;
     
-    // 1. NG Filter (Instant Block)
+    // 1. Japanese Filter (Strict) based on user request
+    // 日本語の文字が含まれていない動画は除外する（タイトル、チャンネル名、説明文のいずれか）
+    if (!containsJapanese(fullText)) {
+        return { isValid: false, score: -9999, reasons: ['Non-Japanese content filtered'] };
+    }
+
+    // 2. NG Filter (Instant Block)
     if (source.ngKeywords && source.ngKeywords.length > 0) {
         for (const ng of source.ngKeywords) {
             if (fullText.includes(ng.toLowerCase())) {
@@ -92,7 +102,7 @@ const validateVideo = (
         return { isValid: false, score: -9999, reasons: [`NG Channel: ${video.channelName}`] };
     }
 
-    // 2. Duration Filter (Strict Block)
+    // 3. Duration Filter (Strict Block)
     // ユーザーが長さを指定している場合、一致しないものは除外する
     if (source.preferredDurations && source.preferredDurations.length > 0) {
         const sec = parseDurationToSeconds(video.isoDuration);
@@ -108,7 +118,7 @@ const validateVideo = (
         }
     }
 
-    // 3. Context Scoring (Bonus Only)
+    // 4. Context Scoring (Bonus Only)
     // ここでのスコアは「並び替え」には強く影響させず、「質」の担保に使う
     
     // History Relevance
@@ -119,7 +129,7 @@ const validateVideo = (
     // Genre Match
     source.preferredGenres.forEach(genre => {
         if (fullText.includes(genre.toLowerCase())) {
-            score += 20;
+            score += 40;
         }
     });
     
@@ -127,6 +137,15 @@ const validateVideo = (
     if (source.preferredFreshness === 'new') {
          if (video.uploadedAt.includes('分前') || video.uploadedAt.includes('時間前') || video.uploadedAt.includes('日前')) {
             score += 10;
+        }
+    }
+
+    // Context Match
+    if (source.searchHistory.length > 0) {
+        // 簡易的なコンテキスト一致
+        const recentSearches = source.searchHistory.slice(0, 5);
+        if (recentSearches.some(s => fullText.includes(s.toLowerCase()))) {
+             score += 30;
         }
     }
 
@@ -183,7 +202,9 @@ export const getDeeplyAnalyzedRecommendations = async (sources: RecommendationSo
                 if (watchHistory.length > 0 || searchHistory.length > 0) {
                     const useWatch = watchHistory.length > 0 && (searchHistory.length === 0 || Math.random() > 0.4);
                     if (useWatch) {
-                        const randomVideo = watchHistory[Math.floor(Math.random() * Math.min(watchHistory.length, 50))];
+                        // 過去の履歴からランダムに抽出（範囲を広げてセレンディピティ向上）
+                        const historyPoolSize = Math.min(watchHistory.length, 50);
+                        const randomVideo = watchHistory[Math.floor(Math.random() * historyPoolSize)];
                         const kws = extractKeywords(randomVideo.title);
                         if (kws.length > 0) {
                             queries.add(kws[Math.floor(Math.random() * kws.length)]);
@@ -192,12 +213,13 @@ export const getDeeplyAnalyzedRecommendations = async (sources: RecommendationSo
                         }
                     } else {
                         // 検索履歴
-                        const randomSearch = searchHistory[Math.floor(Math.random() * Math.min(searchHistory.length, 20))];
+                        const searchPoolSize = Math.min(searchHistory.length, 20);
+                        const randomSearch = searchHistory[Math.floor(Math.random() * searchPoolSize)];
                         if (randomSearch) queries.add(randomSearch);
                     }
                 } else {
                     // 履歴がない場合はDiscoveryにフォールバック
-                    queries.add('Japan trending');
+                    queries.add('日本 急上昇');
                 }
                 break;
 
@@ -213,7 +235,7 @@ export const getDeeplyAnalyzedRecommendations = async (sources: RecommendationSo
                         queries.add(`${randomSub.name} 動画`);
                     }
                 } else {
-                     queries.add('New Music Video');
+                     queries.add('最新 音楽 MV');
                 }
                 break;
 
@@ -232,8 +254,8 @@ export const getDeeplyAnalyzedRecommendations = async (sources: RecommendationSo
 
             case 'discovery':
             default:
-                // ランダム・トレンド・広い単語
-                const topics = ['Music', 'Gaming', 'Vlog', 'News', 'Cat', 'Cooking', 'Japan', 'Live', 'ASMR', 'Anime'];
+                // ランダム・トレンド・広い単語 (日本語化)
+                const topics = ['音楽', 'ゲーム', 'Vlog', 'ニュース', '猫', '料理', '日本', 'ライブ', 'ASMR', 'アニメ', '都市伝説', '歌ってみた'];
                 queries.add(topics[Math.floor(Math.random() * topics.length)]);
                 break;
         }
@@ -241,8 +263,8 @@ export const getDeeplyAnalyzedRecommendations = async (sources: RecommendationSo
 
     // クエリが少なすぎる場合の保険
     if (queries.size < 3) {
-        queries.add('Japan trending');
-        queries.add('Live stream');
+        queries.add('日本 急上昇');
+        queries.add('ライブ配信');
     }
 
     // ---------------------------------------------------------

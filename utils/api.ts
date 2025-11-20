@@ -1,4 +1,5 @@
-import type { Video, VideoDetails, Channel, ChannelDetails, ApiPlaylist, Comment, PlaylistDetails, SearchResults } from '../types';
+
+import type { Video, VideoDetails, Channel, ChannelDetails, ApiPlaylist, Comment, PlaylistDetails, SearchResults, HomeVideo, HomePlaylist, ChannelHomeData } from '../types';
 import dayjs from 'dayjs';
 import 'dayjs/locale/ja';
 import relativeTime from 'dayjs/plugin/relativeTime';
@@ -132,6 +133,32 @@ export interface StreamUrls {
   
 export async function getStreamUrls(videoId: string): Promise<StreamUrls> {
     return await apiFetch(`stream?id=${videoId}`);
+}
+
+// --- HOME TAB TYPES AND FUNCTIONS ---
+
+export const mapHomeVideoToVideo = (homeVideo: HomeVideo, channelData?: Partial<ChannelDetails>): Video => {
+    return {
+        id: homeVideo.videoId,
+        title: homeVideo.title,
+        thumbnailUrl: homeVideo.thumbnail || `https://i.ytimg.com/vi/${homeVideo.videoId}/mqdefault.jpg`,
+        duration: homeVideo.duration || '',
+        isoDuration: '',
+        channelName: homeVideo.author || channelData?.name || '',
+        channelId: channelData?.id || '',
+        channelAvatarUrl: homeVideo.icon || channelData?.avatarUrl || '',
+        views: homeVideo.viewCount || '',
+        uploadedAt: homeVideo.published || '',
+        descriptionSnippet: homeVideo.description || '',
+    };
+};
+
+export async function getChannelHome(channelId: string): Promise<ChannelHomeData> {
+    const response = await fetch(`https://siawaseok.duckdns.org/api/channel/${channelId}`);
+    if (!response.ok) {
+        throw new Error(`Failed to fetch channel home data: ${response.status}`);
+    }
+    return await response.json();
 }
 
 // --- EXPORTED API FUNCTIONS ---

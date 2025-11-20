@@ -1,16 +1,13 @@
-
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { useParams } from 'react-router-dom';
-import { getChannelDetails, getChannelVideos, getChannelPlaylists, getPlaylistDetails } from '../utils/api';
-import type { ChannelDetails, Video, ApiPlaylist, Channel } from '../types';
+import { useParams, Link } from 'react-router-dom';
+import { getChannelDetails, getChannelVideos, getChannelHome, mapHomeVideoToVideo } from '../utils/api';
+import type { ChannelDetails, Video, Channel, ChannelHomeData, HomePlaylist } from '../types';
 import VideoGrid from '../components/VideoGrid';
+import VideoCard from '../components/VideoCard';
 import VideoCardSkeleton from '../components/icons/VideoCardSkeleton';
-import SearchPlaylistResultCard from '../components/SearchPlaylistResultCard';
 import { useSubscription } from '../contexts/SubscriptionContext';
-import { usePlaylist } from '../contexts/PlaylistContext';
-import { AddToPlaylistIcon } from '../components/icons/Icons';
 
-type Tab = 'videos' | 'playlists';
+type Tab = 'home' | 'videos';
 
 const useInfiniteScroll = (callback: () => void, hasMore: boolean) => {
     const observer = useRef<IntersectionObserver | null>(null);
@@ -31,19 +28,16 @@ const ChannelPage: React.FC = () => {
     const [channelDetails, setChannelDetails] = useState<ChannelDetails | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [activeTab, setActiveTab] = useState<Tab>('videos');
+    const [activeTab, setActiveTab] = useState<Tab>('home');
 
+    const [homeData, setHomeData] = useState<ChannelHomeData | null>(null);
     const [videos, setVideos] = useState<Video[]>([]);
-    const [playlists, setPlaylists] = useState<ApiPlaylist[]>([]);
     
     const [videosPageToken, setVideosPageToken] = useState<string | undefined>('1');
     const [isFetchingMore, setIsFetchingMore] = useState(false);
-
-    const [savingPlaylistId, setSavingPlaylistId] = useState<string | null>(null);
     const [isTabLoading, setIsTabLoading] = useState(false);
     
     const { isSubscribed, subscribe, unsubscribe } = useSubscription();
-    const { createPlaylist } = usePlaylist();
 
     useEffect(() => {
         const loadInitialDetails = async () => {
@@ -51,9 +45,9 @@ const ChannelPage: React.FC = () => {
             setIsLoading(true);
             setError(null);
             setVideos([]);
-            setPlaylists([]);
+            setHomeData(null);
             setVideosPageToken('1');
-            setActiveTab('videos');
+            setActiveTab('home');
             try {
                 const details = await getChannelDetails(channelId);
                 setChannelDetails(details);
@@ -78,6 +72,12 @@ const ChannelPage: React.FC = () => {
 
         try {
             switch (tab) {
+                case 'home':
+                    if (!homeData) {
+                         const hData = await getChannelHome(channelId);
+                         setHomeData(hData);
+                    }
+                    break;
                 case 'videos':
                     const vData = await getChannelVideos(channelId, pageToken);
                     const enrichedVideos = vData.videos.map(v => ({
@@ -89,31 +89,30 @@ const ChannelPage: React.FC = () => {
                     setVideos(prev => pageToken && pageToken !== '1' ? [...prev, ...enrichedVideos] : enrichedVideos);
                     setVideosPageToken(vData.nextPageToken);
                     break;
-                case 'playlists':
-                    if (playlists.length === 0) {
-                        const pData = await getChannelPlaylists(channelId);
-                        setPlaylists(pData.playlists);
-                    }
-                    break;
             }
         } catch (err) {
             console.error(`Failed to load ${tab}`, err);
-            setError(`[${tab}] タブの読み込みに失敗しました。`);
+            if(tab === 'home') {
+                // Don't show critical error for home tab failure, just show empty
+                console.warn("Home tab fetch failed, staying empty.");
+            } else {
+                setError(`[${tab}] タブの読み込みに失敗しました。`);
+            }
         } finally {
             setIsTabLoading(false);
             setIsFetchingMore(false);
         }
-    }, [channelId, isFetchingMore, playlists.length, channelDetails]);
+    }, [channelId, isFetchingMore, homeData, channelDetails]);
     
     useEffect(() => {
         if (channelId && !isLoading) {
-            if (activeTab === 'videos' && videos.length === 0) {
+            if (activeTab === 'home' && !homeData) {
+                fetchTabData('home');
+            } else if (activeTab === 'videos' && videos.length === 0) {
                 fetchTabData('videos', '1');
-            } else if (activeTab !== 'videos') {
-                fetchTabData(activeTab);
             }
         }
-    }, [activeTab, channelId, isLoading, fetchTabData, videos.length]);
+    }, [activeTab, channelId, isLoading, fetchTabData, videos.length, homeData]);
 
     const handleLoadMore = useCallback(() => {
         if (activeTab === 'videos' && videosPageToken && !isFetchingMore) {
@@ -123,24 +122,6 @@ const ChannelPage: React.FC = () => {
 
     const lastElementRef = useInfiniteScroll(handleLoadMore, !!videosPageToken);
 
-    const handleSavePlaylist = async (e: React.MouseEvent, playlist: ApiPlaylist) => {
-        e.preventDefault();
-        e.stopPropagation();
-        if (savingPlaylistId === playlist.id || !playlist.author || !playlist.authorId) return;
-        setSavingPlaylistId(playlist.id);
-        try {
-            const details = await getPlaylistDetails(playlist.id);
-            const videoIds = details.videos.map(v => v.id);
-            createPlaylist(playlist.title, videoIds, playlist.author, playlist.authorId);
-            alert(`プレイリスト「${playlist.title}」をライブラリに保存しました。`);
-        } catch (error) {
-            console.error("Failed to save playlist:", error);
-            alert("プレイリストの保存に失敗しました。");
-        } finally {
-            setSavingPlaylistId(null);
-        }
-    };
-    
     if (isLoading) return <div className="text-center p-8">チャンネル情報を読み込み中...</div>;
     if (error && !channelDetails) return <div className="text-center text-red-500 bg-red-100 dark:bg-red-900/50 p-4 rounded-lg">{error}</div>;
     if (!channelDetails) return null;
@@ -170,10 +151,80 @@ const ChannelPage: React.FC = () => {
         </button>
     );
 
+    const renderHomeTab = () => {
+        if (!homeData) return <div className="p-8 text-center"><div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-yt-blue mx-auto"></div></div>;
+        
+        return (
+            <div className="flex flex-col gap-8 pb-10">
+                {/* Featured Video */}
+                {homeData.topVideo && (
+                    <div className="flex flex-col md:flex-row gap-6 border-b border-yt-spec-light-20 dark:border-yt-spec-20 pb-8">
+                        <div className="w-full md:w-[420px] flex-shrink-0">
+                             <Link to={`/watch/${homeData.topVideo.videoId}`}>
+                                <div className="aspect-video rounded-xl overflow-hidden bg-yt-dark-gray relative group">
+                                    <img 
+                                        src={`https://i.ytimg.com/vi/${homeData.topVideo.videoId}/hqdefault.jpg`} 
+                                        alt={homeData.topVideo.title} 
+                                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                    />
+                                    <div className="absolute bottom-1 right-1 bg-black bg-opacity-80 text-white text-xs px-1.5 py-0.5 rounded-md">
+                                        {homeData.topVideo.duration}
+                                    </div>
+                                </div>
+                             </Link>
+                        </div>
+                        <div className="flex-1">
+                            <h2 className="text-lg font-medium mb-2">
+                                <Link to={`/watch/${homeData.topVideo.videoId}`} className="hover:text-black dark:hover:text-white text-black dark:text-white line-clamp-2">
+                                    {homeData.topVideo.title}
+                                </Link>
+                            </h2>
+                             <div className="text-sm text-yt-light-gray mb-2">
+                                <span>{homeData.topVideo.viewCount}</span>
+                                <span className="mx-1">•</span>
+                                <span>{homeData.topVideo.published}</span>
+                            </div>
+                            {homeData.topVideo.description && (
+                                <div className="text-sm text-yt-light-gray line-clamp-4 whitespace-pre-wrap" dangerouslySetInnerHTML={{ __html: homeData.topVideo.description }} />
+                            )}
+                        </div>
+                    </div>
+                )}
+
+                {/* Playlists Shelves */}
+                {homeData.playlists.map((playlist: HomePlaylist, index) => (
+                    <div key={index} className="flex flex-col gap-4">
+                        <h3 className="text-xl font-bold flex items-center">
+                            <Link to={`/playlist/${playlist.playlistId}`} className="hover:text-yt-light-gray transition-colors">
+                                {playlist.title}
+                            </Link>
+                        </h3>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-x-4 gap-y-8">
+                             {playlist.items.map(item => (
+                                <VideoCard 
+                                    key={item.videoId} 
+                                    video={mapHomeVideoToVideo(item, channelDetails)} 
+                                    hideChannelInfo={true} 
+                                />
+                             ))}
+                        </div>
+                        {index < homeData.playlists.length - 1 && <hr className="border-yt-spec-light-20 dark:border-yt-spec-20 mt-4" />}
+                    </div>
+                ))}
+                
+                {homeData.playlists.length === 0 && !homeData.topVideo && (
+                    <div className="text-center py-10 text-yt-light-gray">
+                        ホームコンテンツがありません。
+                    </div>
+                )}
+            </div>
+        );
+    };
+
     const renderTabContent = () => {
         const isInitialTabLoading = isTabLoading && (
             (activeTab === 'videos' && videos.length === 0) ||
-            (activeTab === 'playlists' && playlists.length === 0)
+            (activeTab === 'home' && !homeData)
         );
 
         if (isInitialTabLoading) {
@@ -185,6 +236,8 @@ const ChannelPage: React.FC = () => {
         }
 
         switch (activeTab) {
+            case 'home':
+                return renderHomeTab();
             case 'videos':
                 return videos.length > 0 ? (
                     <>
@@ -194,24 +247,6 @@ const ChannelPage: React.FC = () => {
                         </div>
                     </>
                 ) : <div className="text-center p-8 text-yt-light-gray">このチャンネルには動画がありません。</div>;
-            case 'playlists':
-                return playlists.length > 0 ? (
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                        {playlists.map(p => (
-                            <div key={p.id} className="relative">
-                                <SearchPlaylistResultCard playlist={p} />
-                                <button 
-                                    onClick={(e) => handleSavePlaylist(e, p)} 
-                                    disabled={savingPlaylistId === p.id} 
-                                    className="absolute top-2 right-2 p-2 rounded-full bg-black/60 text-white opacity-0 hover:opacity-100 transition-opacity disabled:opacity-50 z-10" 
-                                    title="ライブラリに保存"
-                                >
-                                    <AddToPlaylistIcon />
-                                </button>
-                            </div>
-                        ))}
-                    </div>
-                ) : <div className="text-center p-8 text-yt-light-gray">このチャンネルには再生リストがありません。</div>;
             default:
                 return null;
         }
@@ -278,8 +313,8 @@ const ChannelPage: React.FC = () => {
             {/* Tabs */}
             <div className="border-b border-yt-spec-light-20 dark:border-yt-spec-20 mb-6">
                 <nav className="flex space-x-2">
+                    <TabButton tab="home" label="ホーム" />
                     <TabButton tab="videos" label="動画" />
-                    <TabButton tab="playlists" label="再生リスト" />
                 </nav>
             </div>
 

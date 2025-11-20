@@ -1,3 +1,4 @@
+
 export interface Video {
   id: string;
   thumbnailUrl: string;
@@ -108,4 +109,33 @@ export interface SearchResults {
     channels: Channel[];
     playlists: ApiPlaylist[];
     nextPageToken?: string;
+}
+
+export interface HomeVideo {
+    videoId: string;
+    title: string;
+    duration?: string;
+    published?: string;
+    viewCount?: string;
+    thumbnail?: string;
+    description?: string;
+    author?: string;
+    icon?: string;
+}
+
+export interface HomePlaylist {
+    title: string;
+    playlistId: string;
+    items: HomeVideo[];
+}
+
+export interface ChannelHomeData {
+    channelId: string;
+    title: string;
+    avatar: string;
+    banner: string;
+    videoCount: string;
+    description: string;
+    topVideo?: HomeVideo;
+    playlists: HomePlaylist[];
 }

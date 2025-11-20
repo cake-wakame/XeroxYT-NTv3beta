@@ -19,95 +19,87 @@ app.get('/api/video', async (req, res) => {
 
     const info = await youtube.getInfo(id);
 
-    // 関連動画を最大50件取得するロジック
-    // 複数のソースから候補を集約する
-    let allCandidates = [];
+    // 関連動画を集約するための配列
+    // 初期ロード分の動画を追加
+    let relatedVideos = [];
     
-    const addCandidates = (source) => {
-        if (Array.isArray(source)) {
-            allCandidates.push(...source);
-        }
-    };
-
-    // 優先度順ではなく、すべてを集める
-    addCandidates(info.watch_next_feed);
-    addCandidates(info.related_videos);
-    if (info.secondary_info) {
-        addCandidates(info.secondary_info.watch_next_feed);
+    // watch_next_feedがメインの関連動画ソース
+    if (info.watch_next_feed && Array.isArray(info.watch_next_feed)) {
+        relatedVideos.push(...info.watch_next_feed);
     }
-    addCandidates(info.related);
-
-    // プレーヤーオーバーレイ（エンドスクリーン）からも取得
-    const overlays = info.player_overlays || info.playerOverlays;
-    if (overlays) {
-        const endScreen = overlays.end_screen || overlays.endScreen;
-        if (endScreen && Array.isArray(endScreen.results)) {
-            addCandidates(endScreen.results);
-        }
+    // secondary_infoにも含まれる場合がある
+    if (info.secondary_info?.watch_next_feed && Array.isArray(info.secondary_info.watch_next_feed)) {
+        relatedVideos.push(...info.secondary_info.watch_next_feed);
     }
 
-    // 重複排除とフィルタリング
-    const relatedVideos = [];
+    // 重複排除用のセット
     const seenIds = new Set();
-    const MAX_VIDEOS = 50;
-
-    for (const video of allCandidates) {
-        if (relatedVideos.length >= MAX_VIDEOS) break;
-        
-        // 動画オブジェクトの検証
-        if (!video) continue;
-        const videoId = video.id || video.videoId;
-        
-        // IDが文字列かつ11桁（通常の動画）で、未登録の場合のみ追加
-        if (typeof videoId === 'string' && videoId.length === 11 && !seenIds.has(videoId)) {
-            seenIds.add(videoId);
-            relatedVideos.push(video);
+    // 初期データの重複排除とID保存
+    relatedVideos = relatedVideos.filter(v => {
+        const vid = v.id || v.videoId;
+        if (vid && !seenIds.has(vid)) {
+            seenIds.add(vid);
+            return true;
         }
-    }
+        return false;
+    });
 
-    // もし数が足りなければ、Continuationを試みる（ライブラリがサポートしている場合）
-    // 50件になるまで、または最大5回までContinuationを取得する
+    // 50件になるまでContinuation（次のページの読み込み）を実行
+    const MAX_VIDEOS = 50;
+    let currentInfo = info;
     let continuationCount = 0;
+
     while (relatedVideos.length < MAX_VIDEOS && continuationCount < 5) {
         try {
-            if (typeof info.getWatchNextContinuation === 'function') {
-                const nextInfo = await info.getWatchNextContinuation();
-                if (nextInfo && Array.isArray(nextInfo.watch_next_feed)) {
-                    let addedCount = 0;
-                    for (const video of nextInfo.watch_next_feed) {
-                        if (relatedVideos.length >= MAX_VIDEOS) break;
-                        const videoId = video.id || video.videoId;
-                        if (typeof videoId === 'string' && videoId.length === 11 && !seenIds.has(videoId)) {
-                            seenIds.add(videoId);
-                            relatedVideos.push(video);
-                            addedCount++;
-                        }
-                    }
-                    // 新しい動画が追加されなければループを抜ける
-                    if (addedCount === 0) break;
-                } else {
-                    break; // Continuationデータがない
+            // getWatchNextContinuationで次のバッチを取得
+            const nextInfo = await currentInfo.getWatchNextContinuation();
+            
+            if (!nextInfo) break;
+            currentInfo = nextInfo; // 次のループのために参照を更新
+
+            const newItems = nextInfo.watch_next_feed || [];
+            if (newItems.length === 0) break;
+
+            let addedCount = 0;
+            for (const item of newItems) {
+                if (relatedVideos.length >= MAX_VIDEOS) break;
+
+                const vid = item.id || item.videoId;
+                // IDがあり、かつ未登録のものだけ追加
+                // 動画以外の要素（プレイリストカードなど）が混ざる場合があるので、タイトルかIDがあるものを簡易チェック
+                if (vid && !seenIds.has(vid) && (item.type === 'CompactVideo' || item.type === 'Video' || item.title)) {
+                    seenIds.add(vid);
+                    relatedVideos.push(item);
+                    addedCount++;
                 }
-            } else {
-                break; // 関数が存在しない
             }
+            
+            // 新しい動画が一つも追加されなかったら終了（無限ループ防止）
+            if (addedCount === 0) break;
+
         } catch (e) {
-            // Continuationの取得失敗はログに出してループを抜ける
-            console.log('Failed to fetch continuation:', e.message);
+            // Continuationがない、またはエラーの場合はループを抜ける
+            // console.log('Continuation fetch ended:', e.message);
             break;
         }
         continuationCount++;
     }
 
-    // 結果を watch_next_feed に格納して返す
-    info.watch_next_feed = relatedVideos;
+    // 重要: youtubei.jsのオブジェクトはクラスインスタンスであり、
+    // res.json(info)でシリアライズする際に、手動で代入したプロパティ(info.watch_next_feed = ...)が
+    // 無視される場合があるため、一度プレーンなJSONオブジェクトに変換してからデータを上書きする。
+    const responseObj = JSON.parse(JSON.stringify(info));
     
-    // 他のプロパティをクリアして、フロントエンドが watch_next_feed を確実に使うようにする
-    if (info.secondary_info) info.secondary_info.watch_next_feed = [];
-    info.related_videos = [];
-    info.related = [];
+    // 集約した動画リストで上書き
+    responseObj.watch_next_feed = relatedVideos;
+    
+    // フロントエンドが迷わないように、他の関連動画ソースは空にする
+    if (responseObj.secondary_info) {
+        responseObj.secondary_info.watch_next_feed = [];
+    }
+    responseObj.related_videos = [];
 
-    res.status(200).json(info);
+    res.status(200).json(responseObj);
     
   } catch (err) {
     console.error('Error in /api/video:', err);
@@ -115,9 +107,6 @@ app.get('/api/video', async (req, res) => {
   }
 });
 
-// -------------------------------------------------------------------
-// 以下のAPIエンドポイントは、前回のコードから一切変更ありません。
-// -------------------------------------------------------------------
 app.get('/api/search', async (req, res) => {
   try {
     const youtube = await Innertube.create({ lang: "ja", location: "JP" });

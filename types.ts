@@ -31,6 +31,7 @@ export interface VideoDetails extends Video {
   likes: string;
   dislikes: string;
   channel: Channel;
+  collaborators?: Channel[]; // 複数チャンネル対応
   relatedVideos: Video[];
 }
 

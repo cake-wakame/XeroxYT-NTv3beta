@@ -254,11 +254,66 @@ export async function getVideoDetails(videoId: string): Promise<VideoDetails> {
     const secondary = data.secondary_info;
     const basic = data.basic_info;
 
+    // --- 複数チャンネル（コラボレーター）解析ロジック ---
+    let collaborators: Channel[] = [];
+    let channelId = secondary?.owner?.author?.id ?? '';
+    let channelName = secondary?.owner?.author?.name ?? '不明なチャンネル';
+    let channelAvatar = secondary?.owner?.author?.thumbnails?.[0]?.url ?? '';
+    const subscriberCount = secondary?.owner?.subscriber_count?.text ?? '非公開';
+
+    // メインの著者名が "N/A" または 不明な場合、コラボレーターリストを探す
+    if (channelName === 'N/A' || !channelName) {
+        try {
+            const listItems = secondary?.owner?.author?.endpoint?.payload?.panelLoadingStrategy?.inlineContent?.dialogViewModel?.customContent?.listViewModel?.listItems;
+            
+            if (Array.isArray(listItems)) {
+                collaborators = listItems.map((item: any) => {
+                    const vm = item.listItemViewModel;
+                    if (!vm) return null;
+                    
+                    const title = vm.title?.content || '';
+                    const avatar = vm.leadingAccessory?.avatarViewModel?.image?.sources?.[0]?.url || '';
+                    
+                    // channelIdの抽出 (endpoint内または直接)
+                    let cId = '';
+                    const browseEndpoint = vm.rendererContext?.commandContext?.onTap?.innertubeCommand?.browseEndpoint || 
+                                           vm.title?.commandRuns?.[0]?.onTap?.innertubeCommand?.browseEndpoint ||
+                                           vm.leadingAccessory?.avatarViewModel?.endpoint?.innertubeCommand?.browseEndpoint;
+                                           
+                    if (browseEndpoint?.browseId) {
+                        cId = browseEndpoint.browseId;
+                    }
+
+                    // サブタイトルから登録者数を抽出 (例: "@Nanatsukaze_ • チャンネル登録者数 4.4万人")
+                    const subText = vm.subtitle?.content || '';
+                    const subCountMatch = subText.match(/チャンネル登録者数\s+(.+)$/);
+                    const subCount = subCountMatch ? subCountMatch[1] : '';
+
+                    return {
+                        id: cId,
+                        name: title,
+                        avatarUrl: avatar,
+                        subscriberCount: subCount
+                    } as Channel;
+                }).filter((c: any): c is Channel => c !== null && c.id !== '');
+
+                // コラボレーターが見つかった場合、最初の1人をメインチャンネルとして扱う
+                if (collaborators.length > 0) {
+                    channelId = collaborators[0].id;
+                    channelName = collaborators[0].name;
+                    channelAvatar = collaborators[0].avatarUrl;
+                }
+            }
+        } catch (e) {
+            console.error("Failed to parse collaborators:", e);
+        }
+    }
+
     const channel: Channel = {
-        id: secondary?.owner?.author?.id ?? '',
-        name: secondary?.owner?.author?.name ?? '不明なチャンネル',
-        avatarUrl: secondary?.owner?.author?.thumbnails?.[0]?.url ?? '',
-        subscriberCount: secondary?.owner?.subscriber_count?.text ?? '非公開',
+        id: channelId,
+        name: channelName,
+        avatarUrl: channelAvatar,
+        subscriberCount: subscriberCount,
     };
     
     let rawRelated = data.watch_next_feed || [];
@@ -293,6 +348,7 @@ export async function getVideoDetails(videoId: string): Promise<VideoDetails> {
         likes: formatJapaneseNumber(basic?.like_count ?? 0),
         dislikes: '0',
         channel: channel,
+        collaborators: collaborators.length > 0 ? collaborators : undefined,
         relatedVideos: relatedVideos,
     };
 }

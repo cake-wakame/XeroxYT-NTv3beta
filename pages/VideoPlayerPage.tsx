@@ -1,8 +1,8 @@
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useParams, Link, useSearchParams } from 'react-router-dom';
 import { getVideoDetails, getPlayerConfig, getComments, getVideosByIds, getExternalRelatedVideos } from '../utils/api';
-import type { VideoDetails, Video, Comment } from '../types';
+import type { VideoDetails, Video, Comment, Channel } from '../types';
 import { useSubscription } from '../contexts/SubscriptionContext';
 import { useHistory } from '../contexts/HistoryContext';
 import { usePlaylist } from '../contexts/PlaylistContext';
@@ -11,7 +11,7 @@ import PlaylistModal from '../components/PlaylistModal';
 import CommentComponent from '../components/Comment';
 import PlaylistPanel from '../components/PlaylistPanel';
 import RelatedVideoCard from '../components/RelatedVideoCard';
-import { LikeIcon, SaveIcon, MoreIconHorizontal, ShareIcon, DownloadIcon, ThanksIcon, DislikeIcon } from '../components/icons/Icons';
+import { LikeIcon, SaveIcon, MoreIconHorizontal, ShareIcon, DownloadIcon, ThanksIcon, DislikeIcon, ChevronRightIcon, CheckIcon } from '../components/icons/Icons';
 
 const VideoPlayerPage: React.FC = () => {
     const { videoId } = useParams<{ videoId: string }>();
@@ -27,6 +27,8 @@ const VideoPlayerPage: React.FC = () => {
     const [isPlaylistModalOpen, setIsPlaylistModalOpen] = useState(false);
     const [playerParams, setPlayerParams] = useState<string | null>(null);
     const [playlistVideos, setPlaylistVideos] = useState<Video[]>([]);
+    const [isCollaboratorMenuOpen, setIsCollaboratorMenuOpen] = useState(false);
+    const collaboratorMenuRef = useRef<HTMLDivElement>(null);
     
     const [isShuffle, setIsShuffle] = useState(searchParams.get('shuffle') === '1');
     const [isLoop, setIsLoop] = useState(searchParams.get('loop') === '1');
@@ -50,6 +52,18 @@ const VideoPlayerPage: React.FC = () => {
             setPlayerParams(await getPlayerConfig());
         };
         fetchPlayerParams();
+    }, []);
+
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (collaboratorMenuRef.current && !collaboratorMenuRef.current.contains(event.target as Node)) {
+                setIsCollaboratorMenuOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
     }, []);
 
     useEffect(() => {
@@ -85,12 +99,10 @@ const VideoPlayerPage: React.FC = () => {
                 window.scrollTo(0, 0);
             }
 
-            // 1. Start fetching essential data
             const detailsPromise = getVideoDetails(videoId);
             const commentsPromise = getComments(videoId);
             
             try {
-                // 2. Wait for essential data only (Fast load)
                 const [details, commentsData] = await Promise.all([
                     detailsPromise, 
                     commentsPromise
@@ -100,19 +112,14 @@ const VideoPlayerPage: React.FC = () => {
                     setVideoDetails(details);
                     setComments(commentsData);
                     
-                    // Display internal related videos initially if available
                     if (details.relatedVideos && details.relatedVideos.length > 0) {
                         setRelatedVideos(details.relatedVideos);
                     }
 
                     addVideoToHistory(details);
-                    
-                    // Render the page content immediately without waiting for external related videos
                     setIsLoading(false);
                 }
                 
-                // 3. Fetch external related videos in background (Slow load)
-                // We do NOT await this before setting isLoading(false)
                 getExternalRelatedVideos(videoId).then(externalRelated => {
                     if (isMounted && externalRelated && externalRelated.length > 0) {
                         setRelatedVideos(externalRelated);
@@ -208,19 +215,29 @@ const VideoPlayerPage: React.FC = () => {
         return null;
     }
     
-    const subscribed = isSubscribed(videoDetails.channel.id);
+    // メインチャンネル（コラボレーターがいる場合はリストの最初、いなければ単一チャンネル）
+    const mainChannel = videoDetails.collaborators && videoDetails.collaborators.length > 0 
+        ? videoDetails.collaborators[0] 
+        : videoDetails.channel;
+
+    const subscribed = isSubscribed(mainChannel.id);
+    
     const handleSubscriptionToggle = () => {
-        if (subscribed) unsubscribe(videoDetails.channel.id);
-        else subscribe(videoDetails.channel);
+        if (subscribed) unsubscribe(mainChannel.id);
+        else subscribe(mainChannel);
     };
 
     const videoForPlaylistModal: Video = {
       id: videoDetails.id, title: videoDetails.title, thumbnailUrl: videoDetails.thumbnailUrl,
-      channelName: videoDetails.channelName, channelId: videoDetails.channelId,
+      channelName: mainChannel.name, channelId: mainChannel.id,
       duration: videoDetails.duration, isoDuration: videoDetails.isoDuration,
       views: videoDetails.views, uploadedAt: videoDetails.uploadedAt,
-      channelAvatarUrl: videoDetails.channelAvatarUrl,
+      channelAvatarUrl: mainChannel.avatarUrl,
     };
+
+    // コラボレーター表示用のロジック
+    const hasCollaborators = videoDetails.collaborators && videoDetails.collaborators.length > 1;
+    const collaboratorsList = videoDetails.collaborators || [];
 
     return (
         <div className="flex flex-col lg:flex-row gap-6 max-w-[1750px] mx-auto pt-2 md:pt-6 px-4 md:px-6 justify-center">
@@ -240,14 +257,52 @@ const VideoPlayerPage: React.FC = () => {
                         {/* Left: Channel Info & Subscribe */}
                         <div className="flex items-center justify-between md:justify-start w-full md:w-auto gap-4">
                             <div className="flex items-center min-w-0 flex-1 md:flex-initial">
-                                <Link to={`/channel/${videoDetails.channel.id}`} className="flex-shrink-0">
-                                    <img src={videoDetails.channel.avatarUrl} alt={videoDetails.channel.name} className="w-10 h-10 rounded-full object-cover" />
+                                <Link to={`/channel/${mainChannel.id}`} className="flex-shrink-0">
+                                    <img src={mainChannel.avatarUrl} alt={mainChannel.name} className="w-10 h-10 rounded-full object-cover" />
                                 </Link>
-                                <div className="flex flex-col ml-3 mr-4 min-w-0">
-                                    <Link to={`/channel/${videoDetails.channel.id}`} className="font-bold text-base text-black dark:text-white hover:text-opacity-80 truncate block">
-                                        {videoDetails.channel.name}
-                                    </Link>
-                                    <span className="text-xs text-yt-light-gray truncate block">{videoDetails.channel.subscriberCount}</span>
+                                <div className="flex flex-col ml-3 mr-4 min-w-0 relative" ref={collaboratorMenuRef}>
+                                    {hasCollaborators ? (
+                                        <div 
+                                            className="flex items-center cursor-pointer hover:opacity-80 group"
+                                            onClick={() => setIsCollaboratorMenuOpen(!isCollaboratorMenuOpen)}
+                                        >
+                                            <span className="font-bold text-base text-black dark:text-white truncate block max-w-[200px]">
+                                                {mainChannel.name} 他
+                                            </span>
+                                            <ChevronRightIcon />
+                                            
+                                            {/* Collaborators Dropdown */}
+                                            {isCollaboratorMenuOpen && (
+                                                <div className="absolute top-full left-0 mt-2 w-64 bg-yt-white dark:bg-yt-light-black rounded-lg shadow-xl border border-yt-spec-light-20 dark:border-yt-spec-20 z-50 overflow-hidden">
+                                                    <div className="px-4 py-2 text-xs font-bold text-yt-light-gray border-b border-yt-spec-light-20 dark:border-yt-spec-20">
+                                                        チャンネルを選択
+                                                    </div>
+                                                    <div className="max-h-60 overflow-y-auto">
+                                                        {collaboratorsList.map(collab => (
+                                                            <Link 
+                                                                key={collab.id} 
+                                                                to={`/channel/${collab.id}`}
+                                                                className="flex items-center px-4 py-3 hover:bg-yt-spec-light-10 dark:hover:bg-yt-spec-10"
+                                                            >
+                                                                <img src={collab.avatarUrl} alt={collab.name} className="w-8 h-8 rounded-full mr-3" />
+                                                                <div>
+                                                                    <p className="text-sm font-semibold text-black dark:text-white">{collab.name}</p>
+                                                                    {collab.subscriberCount && (
+                                                                        <p className="text-xs text-yt-light-gray">{collab.subscriberCount}</p>
+                                                                    )}
+                                                                </div>
+                                                            </Link>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    ) : (
+                                        <Link to={`/channel/${mainChannel.id}`} className="font-bold text-base text-black dark:text-white hover:text-opacity-80 truncate block">
+                                            {mainChannel.name}
+                                        </Link>
+                                    )}
+                                    <span className="text-xs text-yt-light-gray truncate block">{mainChannel.subscriberCount}</span>
                                 </div>
                             </div>
                             
@@ -275,7 +330,6 @@ const VideoPlayerPage: React.FC = () => {
                                 </button>
                             </div>
 
-                            {/* Swapped Share and Save buttons per request */}
                             <button className="flex items-center bg-yt-light dark:bg-[#272727] rounded-full h-9 px-3 sm:px-4 hover:bg-[#e5e5e5] dark:hover:bg-[#3f3f3f] transition-colors whitespace-nowrap gap-2 flex-shrink-0">
                                 <ShareIcon />
                                 <span className="text-sm font-semibold hidden sm:inline">共有</span>

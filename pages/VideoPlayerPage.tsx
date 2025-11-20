@@ -151,14 +151,14 @@ const VideoPlayerPage: React.FC = () => {
 
     if (error && !videoDetails) {
         return (
-            <div className="flex flex-col lg:flex-row gap-6">
+            <div className="flex flex-col lg:flex-row gap-6 max-w-[1280px] mx-auto px-4 md:px-6">
                 <div className="flex-grow lg:w-2/3">
-                    <div className="aspect-video bg-yt-black rounded-none md:rounded-xl overflow-hidden">
+                    <div className="aspect-video bg-yt-black rounded-xl overflow-hidden">
                         {videoId && playerParams && (
                              <iframe src={`https://www.youtubeeducation.com/embed/${videoId}${playerParams}`} title="YouTube video player" frameBorder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen className="w-full h-full"></iframe>
                         )}
                     </div>
-                    <div className="mt-4 p-4 rounded-lg bg-red-100 dark:bg-red-900/50 text-black dark:text-yt-white mx-4 sm:mx-0">
+                    <div className="mt-4 p-4 rounded-lg bg-red-100 dark:bg-red-900/50 text-black dark:text-yt-white">
                         <h2 className="text-lg font-bold mb-2 text-red-500">動画情報の取得エラー</h2>
                         <p>{error}</p>
                     </div>
@@ -186,14 +186,14 @@ const VideoPlayerPage: React.FC = () => {
     };
 
     return (
-        <div className="flex flex-col lg:flex-row gap-0 md:gap-6 max-w-[1400px] mx-auto pt-0 md:pt-6 px-0 md:px-6">
-            <div className="flex-1 min-w-0">
+        <div className="flex flex-col lg:flex-row gap-6 max-w-[1280px] mx-auto pt-2 md:pt-6 px-4 md:px-6 justify-center">
+            <div className="flex-1 min-w-0 max-w-full">
                 {/* Video Player */}
-                <div className="w-full aspect-video bg-yt-black rounded-none md:rounded-xl overflow-hidden shadow-lg relative z-10">
+                <div className="w-full aspect-video bg-yt-black rounded-xl overflow-hidden shadow-lg relative z-10">
                     <iframe src={iframeSrc} key={iframeSrc} title={videoDetails.title} frameBorder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen className="w-full h-full"></iframe>
                 </div>
 
-                <div className="px-4 md:px-0">
+                <div className="">
                     {/* Title */}
                     <h1 className="text-lg md:text-xl font-bold mt-3 mb-2 text-black dark:text-white line-clamp-2">{videoDetails.title}</h1>
 
@@ -296,13 +296,13 @@ const VideoPlayerPage: React.FC = () => {
             </div>
             
             {/* Sidebar: Playlist & Related Videos */}
-            <div className="lg:w-[350px] xl:w-[380px] flex-shrink-0 flex flex-col gap-4 px-4 md:px-0 pb-10 mt-6 lg:mt-0">
+            <div className="w-full lg:w-[350px] xl:w-[400px] flex-shrink-0 flex flex-col gap-4 pb-10">
                 {currentPlaylist && (
                      <PlaylistPanel playlist={currentPlaylist} authorName={currentPlaylist.authorName} videos={playlistVideos} currentVideoId={videoId} isShuffle={isShuffle} isLoop={isLoop} toggleShuffle={toggleShuffle} toggleLoop={toggleLoop} onReorder={handlePlaylistReorder} />
                 )}
                 
                 {/* Filter Chips (Visual only) */}
-                <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1 pt-0 lg:pt-0">
+                <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1 pt-0">
                     <button className="px-3 py-1.5 bg-black dark:bg-white text-white dark:text-black text-xs md:text-sm font-semibold rounded-lg whitespace-nowrap">すべて</button>
                     <button className="px-3 py-1.5 bg-yt-light dark:bg-[#272727] text-black dark:text-white text-xs md:text-sm font-semibold rounded-lg whitespace-nowrap hover:bg-gray-200 dark:hover:bg-gray-700">関連動画</button>
                     <button className="px-3 py-1.5 bg-yt-light dark:bg-[#272727] text-black dark:text-white text-xs md:text-sm font-semibold rounded-lg whitespace-nowrap hover:bg-gray-200 dark:hover:bg-gray-700">最近アップロードされた動画</button>

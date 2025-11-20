@@ -213,7 +213,7 @@ const ChannelPage: React.FC = () => {
     };
 
     return (
-        <div className="max-w-[1200px] mx-auto px-4 sm:px-6">
+        <div className="max-w-[1280px] mx-auto px-4 sm:px-6">
             {/* Banner */}
             {channelDetails.bannerUrl && (
                 <div className="w-full aspect-[6/1] md:aspect-[6/1.2] lg:aspect-[6.2/1] rounded-xl overflow-hidden mb-6">

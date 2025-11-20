@@ -61,7 +61,7 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-yt-white dark:bg-yt-black">
+    <div className="min-h-screen bg-yt-white dark:bg-yt-black overflow-x-hidden">
       <Header 
         toggleSidebar={toggleSidebar} 
         theme={theme}
@@ -69,7 +69,7 @@ const App: React.FC = () => {
       />
       <div className="flex">
         {shouldShowSidebar() && <Sidebar isOpen={isSidebarOpen} />}
-        <main className={`flex-1 mt-14 ${mainContentMargin} ${mainContentPadding} transition-all duration-300 ease-in-out ml-0`}>
+        <main className={`flex-1 mt-14 ${mainContentMargin} ${mainContentPadding} transition-all duration-300 ease-in-out ml-0 overflow-x-hidden`}>
           <Routes>
             <Route path="/" element={<HomePage />} />
             <Route path="/watch/:videoId" element={<VideoPlayerPage />} />

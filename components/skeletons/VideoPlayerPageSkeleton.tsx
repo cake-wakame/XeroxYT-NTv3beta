@@ -14,12 +14,12 @@ const VideoPlayerPageSkeleton: React.FC = () => {
     );
 
     return (
-        <div className="flex flex-col lg:flex-row gap-0 md:gap-6 max-w-[1400px] mx-auto pt-0 md:pt-6 px-0 md:px-6 animate-pulse">
-            <div className="flex-grow lg:w-2/3">
+        <div className="flex flex-col lg:flex-row gap-6 max-w-[1280px] mx-auto pt-2 md:pt-6 px-4 md:px-6 justify-center animate-pulse">
+            <div className="flex-1 min-w-0 max-w-full">
                 {/* Video Player Placeholder */}
-                <div className="aspect-video bg-yt-light dark:bg-yt-dark-gray rounded-none md:rounded-xl"></div>
+                <div className="aspect-video bg-yt-light dark:bg-yt-dark-gray rounded-xl"></div>
                 
-                <div className="px-4 md:px-0">
+                <div className="">
                     <div className="h-7 bg-yt-light dark:bg-yt-dark-gray rounded w-3/4 mt-4"></div>
                     
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between mt-4">
@@ -47,7 +47,7 @@ const VideoPlayerPageSkeleton: React.FC = () => {
                 </div>
             </div>
             
-            <div className="lg:w-[350px] xl:w-[380px] flex-shrink-0 px-4 md:px-0 mt-6 lg:mt-0">
+            <div className="w-full lg:w-[350px] xl:w-[400px] flex-shrink-0">
                 <div className="flex flex-col space-y-3">
                     {Array.from({ length: 10 }).map((_, index) => <RelatedVideoSkeleton key={index} />)}
                 </div>

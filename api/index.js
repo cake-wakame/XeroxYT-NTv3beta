@@ -109,17 +109,10 @@ app.get('/api/search', async (req, res) => {
 
     const search = await youtube.search(query);
     
-    // youtubei.js の search 結果は getter で各タイプを取得可能
-    // ただしバージョンによって挙動が違うため、念のため安全に取得する
-    
     const videos = search.videos || [];
     const shorts = search.shorts || [];
     const channels = search.channels || [];
     const playlists = search.playlists || [];
-
-    // 一部の動画を追加取得（ページネーションは動画メインで行うが、今回は初回ロードでカテゴリを分ける）
-    // 必要であればここで search.getContinuation() を呼んで動画を増やすことも可能だが、
-    // UX向上のため、まずは各カテゴリの初期結果を返す
 
     res.status(200).json({
         videos,
@@ -157,6 +150,7 @@ app.get('/api/comments', async (req, res) => {
     });
   } catch (err) { console.error('Error in /api/comments:', err); res.status(500).json({ error: err.message }); }
 });
+
 app.get('/api/channel', async (req, res) => {
   try {
     const youtube = await Innertube.create({ lang: "ja", location: "JP" });
@@ -173,9 +167,16 @@ app.get('/api/channel', async (req, res) => {
       }
     }
     
-    // Extract metadata with fallbacks
-    const title = channel.metadata?.title || channel.header?.title?.text || null;
-    const avatar = channel.metadata?.avatar || channel.header?.avatar || null;
+    // Extract metadata with fallbacks (Updated to check header.author.name/thumbnails)
+    const title = channel.metadata?.title || channel.header?.title?.text || channel.header?.author?.name || null;
+    
+    let avatar = channel.metadata?.avatar || channel.header?.avatar || channel.header?.author?.thumbnails || null;
+    if (Array.isArray(avatar) && avatar.length > 0) {
+        avatar = avatar[0].url;
+    } else if (typeof avatar === 'object' && avatar?.url) {
+        avatar = avatar.url;
+    }
+
     const banner = channel.metadata?.banner || channel.header?.banner || null;
 
     res.status(200).json({
@@ -193,6 +194,7 @@ app.get('/api/channel', async (req, res) => {
     });
   } catch (err) { console.error('Error in /api/channel:', err); res.status(500).json({ error: err.message }); }
 });
+
 app.get('/api/channel-shorts', async (req, res) => {
   try {
     const youtube = await Innertube.create({ lang: "ja", location: "JP" });
@@ -200,9 +202,11 @@ app.get('/api/channel-shorts', async (req, res) => {
     if (!id) return res.status(400).json({ error: "Missing channel id" });
     const channel = await youtube.getChannel(id);
     const shorts = await channel.getShorts();
-    res.status(200).json(shorts.videos);
+    // youtubei.js usually returns an object with a 'videos' property for the feed
+    res.status(200).json(shorts.videos || []);
   } catch (err) { console.error('Error in /api/channel-shorts:', err); res.status(500).json({ error: err.message }); }
 });
+
 app.get('/api/channel-playlists', async (req, res) => {
   try {
     const youtube = await Innertube.create({ lang: "ja", location: "JP" });
@@ -210,9 +214,14 @@ app.get('/api/channel-playlists', async (req, res) => {
     if (!id) return res.status(400).json({ error: "Missing channel id" });
     const channel = await youtube.getChannel(id);
     const playlists = await channel.getPlaylists();
-    res.status(200).json(playlists);
+    // youtubei.js returns playlists array directly or via a property depending on version.
+    // Assuming latest version returns it as 'playlists' property or directly iterable.
+    // Safe check:
+    const playlistData = playlists.playlists || playlists;
+    res.status(200).json({ playlists: playlistData });
   } catch (err) { console.error('Error in /api/channel-playlists:', err); res.status(500).json({ error: err.message }); }
 });
+
 app.get('/api/playlist', async (req, res) => {
   try {
     const youtube = await Innertube.create({ lang: "ja", location: "JP" });
@@ -223,6 +232,7 @@ app.get('/api/playlist', async (req, res) => {
     res.status(200).json(playlist);
   } catch (err) { console.error('Error in /api/playlist:', err); res.status(500).json({ error: err.message }); }
 });
+
 app.get('/api/fvideo', async (req, res) => {
   try {
     const youtube = await Innertube.create({ lang: "ja", location: "JP" });

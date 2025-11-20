@@ -4,9 +4,11 @@ import { getChannelDetails, getChannelVideos, getChannelPlaylists, getPlaylistDe
 import type { ChannelDetails, Video, ApiPlaylist, Channel } from '../types';
 import VideoGrid from '../components/VideoGrid';
 import VideoCardSkeleton from '../components/icons/VideoCardSkeleton';
+import ShortsCard from '../components/ShortsCard';
+import SearchPlaylistResultCard from '../components/SearchPlaylistResultCard';
 import { useSubscription } from '../contexts/SubscriptionContext';
 import { usePlaylist } from '../contexts/PlaylistContext';
-import { PlaylistIcon, AddToPlaylistIcon } from '../components/icons/Icons';
+import { AddToPlaylistIcon } from '../components/icons/Icons';
 
 type Tab = 'videos' | 'shorts' | 'playlists';
 
@@ -80,7 +82,6 @@ const ChannelPage: React.FC = () => {
             switch (tab) {
                 case 'videos':
                     const vData = await getChannelVideos(channelId, pageToken);
-                    // Backfill channel info if missing
                     const enrichedVideos = vData.videos.map(v => ({
                         ...v,
                         channelName: channelDetails?.name || v.channelName,
@@ -93,7 +94,6 @@ const ChannelPage: React.FC = () => {
                 case 'shorts':
                      if (shorts.length === 0) {
                         const sData = await getChannelShorts(channelId);
-                         // Backfill channel info if missing
                         const enrichedShorts = sData.videos.map(v => ({
                             ...v,
                             channelName: channelDetails?.name || v.channelName,
@@ -120,7 +120,7 @@ const ChannelPage: React.FC = () => {
     }, [channelId, isFetchingMore, shorts.length, playlists.length, channelDetails]);
     
     useEffect(() => {
-        if (channelId && !isLoading) { // Ensure channel details are loaded before fetching tab data
+        if (channelId && !isLoading) {
             if (activeTab === 'videos' && videos.length === 0) {
                 fetchTabData('videos', '1');
             } else if (activeTab !== 'videos') {
@@ -137,7 +137,9 @@ const ChannelPage: React.FC = () => {
 
     const lastElementRef = useInfiniteScroll(handleLoadMore, !!videosPageToken);
 
-    const handleSavePlaylist = async (playlist: ApiPlaylist) => {
+    const handleSavePlaylist = async (e: React.MouseEvent, playlist: ApiPlaylist) => {
+        e.preventDefault();
+        e.stopPropagation();
         if (savingPlaylistId === playlist.id || !playlist.author || !playlist.authorId) return;
         setSavingPlaylistId(playlist.id);
         try {
@@ -208,22 +210,25 @@ const ChannelPage: React.FC = () => {
                     </>
                 ) : <div className="text-center p-8">このチャンネルには動画がありません。</div>;
             case 'shorts':
-                return shorts.length > 0 ? <VideoGrid videos={shorts} isLoading={false} hideChannelInfo={true} /> : <div className="text-center p-8">このチャンネルにはショート動画がありません。</div>;
+                return shorts.length > 0 ? (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-x-4 gap-y-8">
+                        {shorts.map(video => (
+                            <ShortsCard key={video.id} video={video} />
+                        ))}
+                    </div>
+                ) : <div className="text-center p-8">このチャンネルにはショート動画がありません。</div>;
             case 'playlists':
                 return playlists.length > 0 ? (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                         {playlists.map(p => (
-                            <div key={p.id} className="group relative">
-                                <Link to={`/playlist/${p.id}`}>
-                                    <div className="relative aspect-video bg-yt-dark-gray rounded-lg overflow-hidden">
-                                        {p.thumbnailUrl ? <img src={p.thumbnailUrl} alt={p.title} className="w-full h-full object-cover" /> : <div className="w-full h-full bg-yt-gray" />}
-                                        <div className="absolute inset-0 bg-black bg-opacity-40 flex items-center justify-center">
-                                            <div className="text-center text-white"><PlaylistIcon /><p className="font-semibold">{p.videoCount} 本の動画</p></div>
-                                        </div>
-                                    </div>
-                                    <h3 className="font-semibold mt-2">{p.title}</h3>
-                                </Link>
-                                <button onClick={() => handleSavePlaylist(p)} disabled={savingPlaylistId === p.id} className="absolute top-2 right-2 p-2 rounded-full bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50" title="ライブラリに保存">
+                            <div key={p.id} className="relative">
+                                <SearchPlaylistResultCard playlist={p} />
+                                <button 
+                                    onClick={(e) => handleSavePlaylist(e, p)} 
+                                    disabled={savingPlaylistId === p.id} 
+                                    className="absolute top-2 right-2 p-2 rounded-full bg-black/60 text-white opacity-0 hover:opacity-100 transition-opacity disabled:opacity-50 z-10" 
+                                    title="ライブラリに保存"
+                                >
                                     <AddToPlaylistIcon />
                                 </button>
                             </div>

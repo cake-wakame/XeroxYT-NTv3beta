@@ -1,3 +1,4 @@
+
 import React from 'react';
 
 const iconClasses = "fill-current text-black dark:text-white";
@@ -83,9 +84,33 @@ export const LikeIconFilled: React.FC = () => (
     </svg>
 );
 
+export const DislikeIcon: React.FC = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 0 24 24" width="24" focusable="false" className={iconClasses}>
+        <path d="M17 4h-1H6.57C5.5 4 4.59 4.67 4.38 5.61l-1.34 6C2.77 12.85 3.82 14 5.23 14h4.23l-1.52 4.94C7.62 19.97 8.46 21 9.62 21c0.58 0 1.14-0.24 1.52-0.65L17 14h4V4h-4z M10.4 19.63L10.82 19l1.52-4.94L12.65 13h-1.35h-4.23c-0.41 0-0.8-0.17-1.03-0.46C5.77 12.24 5.64 11.99 5.71 11.68l1.34-6C7.34 4.7 7.85 4.35 8.45 4.35H16v8.61l-5.6 6.06C10.1 19.38 10.24 19.51 10.4 19.63z M20 13h-3V5h3V13z"></path>
+    </svg>
+);
+
 export const SaveIcon: React.FC = () => (
     <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 0 24 24" width="24" focusable="false" className={iconClasses}>
         <path d="M14 10H2v2h12v-2zm0-4H2v2h12V6zm4 8v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zM2 16h8v-2H2v2z"></path>
+    </svg>
+);
+
+export const ShareIcon: React.FC = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 0 24 24" width="24" focusable="false" className={iconClasses}>
+        <path d="M15 5.63 20.66 12 15 18.37V14h-1c-3.96 0-7.14 1-9.75 3.09 1.84-4.07 5.11-6.4 9.89-7.1l.86-.13V5.63M14 3v6C6.22 10.13 3.11 15.33 2 21c2.78-3.97 6.44-6 12-6v6l8-9-8-9z"></path>
+    </svg>
+);
+
+export const DownloadIcon: React.FC = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 0 24 24" width="24" focusable="false" className={iconClasses}>
+        <path d="M17 18v1H6v-1h11zm-.5-6.6-.7-.7-3.8 3.7V4h-1v10.4l-3.8-3.8-.7.7 5 5 5-4.9z"></path>
+    </svg>
+);
+
+export const ThanksIcon: React.FC = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 0 24 24" width="24" focusable="false" className={iconClasses}>
+        <path d="M16.5 3C19.54 3 22 5.46 22 8.5c0 3.75-3.69 6.86-8.65 11.36l-1.35 1.22-1.35-1.22C5.69 15.36 2 12.25 2 8.5 2 5.46 4.46 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3zm0 1c-1.46 0-2.88.71-3.79 1.88l-.71.91-.71-.91C10.38 4.71 8.96 4 7.5 4 5.02 4 3 6.02 3 8.5c0 2.9 2.91 5.53 7.59 9.8l1.41 1.28 1.41-1.28C18.09 14.03 21 11.4 21 8.5 21 6.02 18.98 4 16.5 4zM11.5 7.5h1l2.5 3.33v.92l-2.5 3.33h-1l-1.82-2.5H8v-1.17h1.68L11.5 7.5zm0 1.91L10.81 10.5h1.38L11.5 9.41zm0 3.18 1.31-1.75h-2.62l1.31 1.75z"></path>
     </svg>
 );
 

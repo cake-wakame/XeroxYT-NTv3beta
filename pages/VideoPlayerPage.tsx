@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, Link, useSearchParams } from 'react-router-dom';
 import { getVideoDetails, getPlayerConfig, getComments, getVideosByIds } from '../utils/api';
@@ -9,7 +10,8 @@ import VideoPlayerPageSkeleton from '../components/skeletons/VideoPlayerPageSkel
 import PlaylistModal from '../components/PlaylistModal';
 import CommentComponent from '../components/Comment';
 import PlaylistPanel from '../components/PlaylistPanel';
-import { LikeIcon, SaveIcon, MoreIconHorizontal } from '../components/icons/Icons';
+import RelatedVideoCard from '../components/RelatedVideoCard';
+import { LikeIcon, SaveIcon, MoreIconHorizontal, ShareIcon, DownloadIcon, ThanksIcon, DislikeIcon } from '../components/icons/Icons';
 
 const VideoPlayerPage: React.FC = () => {
     const { videoId } = useParams<{ videoId: string }>();
@@ -184,34 +186,32 @@ const VideoPlayerPage: React.FC = () => {
     };
 
     return (
-        <div className={`flex flex-col lg:flex-row gap-6 ${currentPlaylist ? 'max-w-[1700px]' : 'max-w-5xl'} mx-auto`}>
-            <div className={`${currentPlaylist ? 'flex-grow lg:w-2/3' : 'w-full'}`}>
-                {/* Player Container */}
-                <div className="aspect-video bg-yt-black rounded-xl overflow-hidden shadow-lg">
+        <div className="flex flex-col lg:flex-row gap-6 max-w-[1750px] mx-auto pt-6 px-4 sm:px-6">
+            <div className="flex-1 min-w-0">
+                {/* Video Player */}
+                <div className="w-full aspect-video bg-yt-black rounded-xl overflow-hidden shadow-lg relative z-10">
                     <iframe src={iframeSrc} key={iframeSrc} title={videoDetails.title} frameBorder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen className="w-full h-full"></iframe>
                 </div>
 
                 {/* Title */}
-                <div className="mt-3">
-                    <h1 className="text-xl font-bold text-black dark:text-white line-clamp-2">{videoDetails.title}</h1>
-                </div>
+                <h1 className="text-xl font-bold mt-3 mb-2 text-black dark:text-white line-clamp-2">{videoDetails.title}</h1>
 
-                {/* Channel & Actions Bar */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between mt-2 gap-4">
-                    {/* Left Side: Channel Info */}
-                    <div className="flex items-center min-w-0">
+                {/* Actions Bar */}
+                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+                    {/* Left: Channel Info & Subscribe */}
+                    <div className="flex items-center min-w-0 gap-3">
                         <Link to={`/channel/${videoDetails.channel.id}`} className="flex-shrink-0">
                             <img src={videoDetails.channel.avatarUrl} alt={videoDetails.channel.name} className="w-10 h-10 rounded-full object-cover" />
                         </Link>
-                        <div className="ml-3 flex flex-col mr-6">
-                            <Link to={`/channel/${videoDetails.channel.id}`} className="font-bold text-base text-black dark:text-white hover:text-opacity-80 truncate">
+                        <div className="flex flex-col mr-4">
+                            <Link to={`/channel/${videoDetails.channel.id}`} className="font-bold text-base text-black dark:text-white hover:text-opacity-80 truncate max-w-[150px] sm:max-w-xs">
                                 {videoDetails.channel.name}
                             </Link>
-                            <span className="text-xs text-yt-light-gray">{videoDetails.channel.subscriberCount}</span>
+                            <span className="text-xs text-yt-light-gray truncate">{videoDetails.channel.subscriberCount}</span>
                         </div>
                         <button 
                             onClick={handleSubscriptionToggle} 
-                            className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+                            className={`px-4 py-2 rounded-full text-sm font-medium transition-colors whitespace-nowrap ${
                                 subscribed 
                                 ? 'bg-yt-light dark:bg-[#272727] text-black dark:text-white hover:bg-[#e5e5e5] dark:hover:bg-[#3f3f3f]' 
                                 : 'bg-black dark:bg-white text-white dark:text-black hover:opacity-90'
@@ -221,29 +221,39 @@ const VideoPlayerPage: React.FC = () => {
                         </button>
                     </div>
 
-                    {/* Right Side: Actions */}
-                    <div className="flex items-center space-x-2 overflow-x-auto no-scrollbar pb-2 sm:pb-0">
-                         {/* Like Button */}
-                        <div className="flex items-center bg-yt-light dark:bg-[#272727] rounded-full h-9 hover:bg-[#e5e5e5] dark:hover:bg-[#3f3f3f] transition-colors">
-                            <button className="flex items-center px-4 h-full border-r border-yt-light-gray/20">
+                    {/* Right: Action Buttons */}
+                    <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-2 sm:pb-0">
+                        <div className="flex items-center bg-yt-light dark:bg-[#272727] rounded-full h-9 hover:bg-[#e5e5e5] dark:hover:bg-[#3f3f3f] transition-colors flex-shrink-0">
+                            <button className="flex items-center px-4 h-full border-r border-yt-light-gray/20 gap-2">
                                 <LikeIcon />
-                                <span className="ml-2 text-sm font-semibold">{videoDetails.likes}</span>
+                                <span className="text-sm font-semibold">{videoDetails.likes}</span>
                             </button>
-                             {/* Dislike placeholder (visual only) */}
-                            <button className="px-4 h-full rounded-r-full">
-                                <div className="transform rotate-180">
-                                   <LikeIcon />
-                                </div>
+                            <button className="px-3 h-full rounded-r-full">
+                                <DislikeIcon />
                             </button>
                         </div>
 
-                        {/* Share/Save Button */}
-                        <button onClick={() => setIsPlaylistModalOpen(true)} className="flex items-center bg-yt-light dark:bg-[#272727] rounded-full h-9 px-4 hover:bg-[#e5e5e5] dark:hover:bg-[#3f3f3f] transition-colors whitespace-nowrap">
-                            <SaveIcon />
-                            <span className="ml-2 text-sm font-semibold">保存</span>
+                        <button className="flex items-center bg-yt-light dark:bg-[#272727] rounded-full h-9 px-4 hover:bg-[#e5e5e5] dark:hover:bg-[#3f3f3f] transition-colors whitespace-nowrap gap-2 flex-shrink-0">
+                            <ShareIcon />
+                            <span className="text-sm font-semibold">共有</span>
                         </button>
                         
-                        {/* More Button */}
+                        <button className="flex items-center bg-yt-light dark:bg-[#272727] rounded-full h-9 px-4 hover:bg-[#e5e5e5] dark:hover:bg-[#3f3f3f] transition-colors whitespace-nowrap gap-2 flex-shrink-0">
+                            <DownloadIcon />
+                            <span className="text-sm font-semibold">オフライン</span>
+                        </button>
+                        
+                        <button className="flex items-center justify-center bg-yt-light dark:bg-[#272727] rounded-full w-9 h-9 hover:bg-[#e5e5e5] dark:hover:bg-[#3f3f3f] transition-colors flex-shrink-0">
+                            <ThanksIcon />
+                        </button>
+
+                        <button 
+                            onClick={() => setIsPlaylistModalOpen(true)} 
+                            className="flex items-center justify-center bg-yt-light dark:bg-[#272727] rounded-full w-9 h-9 hover:bg-[#e5e5e5] dark:hover:bg-[#3f3f3f] transition-colors flex-shrink-0"
+                        >
+                            <SaveIcon />
+                        </button>
+
                         <button className="flex items-center justify-center bg-yt-light dark:bg-[#272727] rounded-full w-9 h-9 hover:bg-[#e5e5e5] dark:hover:bg-[#3f3f3f] transition-colors flex-shrink-0">
                             <MoreIconHorizontal />
                         </button>
@@ -252,7 +262,7 @@ const VideoPlayerPage: React.FC = () => {
 
                 {/* Description Box */}
                 <div className={`mt-4 bg-yt-light dark:bg-[#272727] p-3 rounded-xl text-sm cursor-pointer hover:bg-[#e5e5e5] dark:hover:bg-[#3f3f3f] transition-colors ${isDescriptionExpanded ? '' : 'h-28 overflow-hidden relative'}`} onClick={() => setIsDescriptionExpanded(prev => !prev)}>
-                     <div className="font-semibold mb-1">
+                    <div className="font-bold mb-2 text-black dark:text-white">
                         {videoDetails.views}  •  {videoDetails.uploadedAt}
                     </div>
                     <div className="whitespace-pre-wrap break-words text-black dark:text-white">
@@ -269,7 +279,7 @@ const VideoPlayerPage: React.FC = () => {
                 </div>
 
                 {/* Comments Section */}
-                 <div className="mt-6">
+                 <div className="mt-6 hidden lg:block">
                     <div className="flex items-center mb-6">
                         <h2 className="text-xl font-bold">{comments.length.toLocaleString()}件のコメント</h2>
                         <div className="ml-8 flex items-center cursor-pointer">
@@ -285,12 +295,33 @@ const VideoPlayerPage: React.FC = () => {
                 </div>
             </div>
             
-            {/* Secondary Column: Playlist Panel Only */}
-            {currentPlaylist && videoId && (
-                <div className="lg:w-1/3 lg:max-w-[400px] flex-shrink-0">
+            {/* Sidebar: Playlist & Related Videos */}
+            <div className="lg:w-[350px] xl:w-[400px] flex-shrink-0 flex flex-col gap-4">
+                {currentPlaylist && (
                      <PlaylistPanel playlist={currentPlaylist} authorName={currentPlaylist.authorName} videos={playlistVideos} currentVideoId={videoId} isShuffle={isShuffle} isLoop={isLoop} toggleShuffle={toggleShuffle} toggleLoop={toggleLoop} onReorder={handlePlaylistReorder} />
+                )}
+                
+                {/* Filter Chips (Visual only) */}
+                <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1">
+                    <button className="px-3 py-1.5 bg-black dark:bg-white text-white dark:text-black text-sm font-semibold rounded-lg whitespace-nowrap">すべて</button>
+                    <button className="px-3 py-1.5 bg-yt-light dark:bg-[#272727] text-black dark:text-white text-sm font-semibold rounded-lg whitespace-nowrap hover:bg-gray-200 dark:hover:bg-gray-700">関連動画</button>
+                    <button className="px-3 py-1.5 bg-yt-light dark:bg-[#272727] text-black dark:text-white text-sm font-semibold rounded-lg whitespace-nowrap hover:bg-gray-200 dark:hover:bg-gray-700">最近アップロードされた動画</button>
                 </div>
-            )}
+
+                {videoDetails.relatedVideos.map(video => (
+                    <RelatedVideoCard key={video.id} video={video} />
+                ))}
+
+                {/* Mobile Comments Fallback */}
+                <div className="block lg:hidden mt-8">
+                    <h2 className="text-xl font-bold mb-4">{comments.length.toLocaleString()}件のコメント</h2>
+                    <div className="space-y-4">
+                        {comments.map(comment => (
+                            <CommentComponent key={comment.comment_id} comment={comment} />
+                        ))}
+                    </div>
+                </div>
+            </div>
             
             {isPlaylistModalOpen && (
                 <PlaylistModal isOpen={isPlaylistModalOpen} onClose={() => setIsPlaylistModalOpen(false)} video={videoForPlaylistModal} />

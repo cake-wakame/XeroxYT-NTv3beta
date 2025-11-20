@@ -1,7 +1,9 @@
+
 import React, { useState, useCallback, useEffect } from 'react';
 import { Routes, Route, useLocation } from 'react-router-dom';
 import Header from './components/Header';
 import Sidebar from './components/Sidebar';
+import BottomNavigation from './components/BottomNavigation';
 import HomePage from './pages/HomePage';
 import SearchResultsPage from './pages/SearchResultsPage';
 import ChannelPage from './pages/ChannelPage';
@@ -27,7 +29,6 @@ const App: React.FC = () => {
     if (isPlayerPage) {
         setIsSidebarOpen(false);
     } else if (!isShortsPage) {
-        // ホーム等に戻った時はデフォルトで開く（好みに応じて変更可）
         setIsSidebarOpen(true);
     }
   }, [location.pathname, isPlayerPage, isShortsPage]);
@@ -37,30 +38,24 @@ const App: React.FC = () => {
   }, []);
 
   const getMargin = () => {
-    if (isShortsPage) return ''; // ショートは全画面
+    if (isShortsPage) return ''; 
     
-    // プレイヤーページでもサイドバーが開いているときはマージンを取る（右に寄せる/リサイズ）
-    if (isSidebarOpen) return 'ml-56'; 
+    // Mobile (handled via CSS classes mostly, base margin is 0)
+    // Desktop margin logic:
+    if (isSidebarOpen) return 'md:ml-60'; 
     
-    // プレイヤーページで閉じているときはマージンなし（またはミニサイドバーがないので0）
+    // If player page and sidebar closed, no margin (full width/theater mode like)
     if (isPlayerPage && !isSidebarOpen) return ''; 
 
-    // 通常ページで閉じているときはミニサイドバー分
-    return 'ml-[72px]';
+    // Mini sidebar margin for other pages when closed
+    return 'md:ml-[72px]';
   };
 
   const mainContentMargin = getMargin();
-  // プレイヤーページのパディング調整
-  const mainContentPadding = isShortsPage ? '' : isPlayerPage ? 'p-6' : 'p-6';
+  const mainContentPadding = isShortsPage ? '' : 'p-0 md:p-6 pb-16 md:pb-6'; // Add bottom padding for mobile nav
   
-  // プレイヤーページでサイドバーが開いているときは、通常のサイドバーを表示
-  // 閉じているときは何も表示しない（オーバーレイではなく、完全に隠す仕様にするため）
-  // 通常ページでは常に表示（Sidebarコンポーネント内でミニ/フルを切り替え）
   const shouldShowSidebar = () => {
     if (isShortsPage) return false;
-    // プレイヤーページの場合、開いている時だけ表示（SidebarコンポーネントはfixedなのでApp側で制御が必要）
-    // ただしSidebarコンポーネント自体が固定配置なので、条件分岐はSidebarに渡すisOpenだけで制御できるが、
-    // 閉じた時のミニバー表示を消したい場合は条件が必要
     if (isPlayerPage && !isSidebarOpen) return false; 
     return true;
   };
@@ -74,7 +69,7 @@ const App: React.FC = () => {
       />
       <div className="flex">
         {shouldShowSidebar() && <Sidebar isOpen={isSidebarOpen} />}
-        <main className={`flex-1 mt-14 ${mainContentMargin} ${mainContentPadding} transition-all duration-300 ease-in-out`}>
+        <main className={`flex-1 mt-14 ${mainContentMargin} ${mainContentPadding} transition-all duration-300 ease-in-out ml-0`}>
           <Routes>
             <Route path="/" element={<HomePage />} />
             <Route path="/watch/:videoId" element={<VideoPlayerPage />} />
@@ -85,11 +80,11 @@ const App: React.FC = () => {
             <Route path="/shorts" element={<ShortsPage />} />
             <Route path="/subscriptions" element={<SubscriptionsPage />} />
             <Route path="/history" element={<HistoryPage />} />
-            {/* Redirect any other path to home */}
             <Route path="*" element={<HomePage />} />
           </Routes>
         </main>
       </div>
+      <BottomNavigation />
     </div>
   );
 };

@@ -15,14 +15,14 @@ interface HeaderProps {
 const Header: React.FC<HeaderProps> = ({ toggleSidebar, theme, toggleTheme }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
-  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [useProxy, setUseProxy] = useState(localStorage.getItem('useChannelHomeProxy') !== 'false');
 
   const { notifications, unreadCount, markAsRead } = useNotification();
   const { addSearchTerm } = useSearchHistory();
   const navigate = useNavigate();
   const notificationRef = useRef<HTMLDivElement>(null);
-  const userMenuRef = useRef<HTMLDivElement>(null);
+  const settingsRef = useRef<HTMLDivElement>(null);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -34,14 +34,14 @@ const Header: React.FC<HeaderProps> = ({ toggleSidebar, theme, toggleTheme }) =>
 
   const handleBellClick = () => {
     setIsNotificationOpen(prev => !prev);
-    setIsUserMenuOpen(false);
+    setIsSettingsOpen(false);
     if (!isNotificationOpen && unreadCount > 0) {
         markAsRead();
     }
   };
   
-  const handleUserIconClick = () => {
-      setIsUserMenuOpen(prev => !prev);
+  const handleSettingsClick = () => {
+      setIsSettingsOpen(prev => !prev);
       setIsNotificationOpen(false);
   };
 
@@ -49,9 +49,6 @@ const Header: React.FC<HeaderProps> = ({ toggleSidebar, theme, toggleTheme }) =>
       const newValue = !useProxy;
       setUseProxy(newValue);
       localStorage.setItem('useChannelHomeProxy', String(newValue));
-      // 設定変更を反映するためにリロードを促すか、状態だけで管理するかですが
-      // api.tsがlocalStorageを読み込むタイミング次第。
-      // ここではリロードして確実に反映させます。
       window.location.reload();
   };
 
@@ -60,8 +57,8 @@ const Header: React.FC<HeaderProps> = ({ toggleSidebar, theme, toggleTheme }) =>
         if (notificationRef.current && !notificationRef.current.contains(event.target as Node)) {
             setIsNotificationOpen(false);
         }
-        if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
-            setIsUserMenuOpen(false);
+        if (settingsRef.current && !settingsRef.current.contains(event.target as Node)) {
+            setIsSettingsOpen(false);
         }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -74,7 +71,7 @@ const Header: React.FC<HeaderProps> = ({ toggleSidebar, theme, toggleTheme }) =>
     <header className="fixed top-0 left-0 right-0 bg-yt-white dark:bg-yt-black h-14 flex items-center justify-between px-4 z-50">
       {/* Left Section */}
       <div className="flex items-center space-x-4">
-        <button onClick={toggleSidebar} className="p-2 rounded-full hover:bg-yt-spec-light-10 dark:hover:bg-yt-spec-10 active:scale-95 transform transition-transform duration-150" aria-label="サイドバーの切り替え">
+        <button onClick={toggleSidebar} className="p-2 rounded-full hover:bg-yt-spec-light-10 dark:hover:bg-yt-spec-10 active:scale-95 transform transition-transform duration-150 hidden md:block" aria-label="サイドバーの切り替え">
           <MenuIcon />
         </button>
         <Link to="/" className="flex items-center" aria-label="YouTubeホーム">
@@ -88,7 +85,7 @@ const Header: React.FC<HeaderProps> = ({ toggleSidebar, theme, toggleTheme }) =>
       {/* Center Section */}
       <div className="flex-1 flex justify-center px-4 lg:px-16 max-w-[720px] mx-auto">
         <form onSubmit={handleSearch} className="w-full flex items-center gap-4">
-          <div className="flex w-full items-center rounded-full shadow-inner border border-yt-light-gray/20 dark:border-[#303030] bg-transparent focus-within:border-yt-blue transition-colors overflow-hidden ml-8">
+          <div className="flex w-full items-center rounded-full shadow-inner border border-yt-light-gray/20 dark:border-[#303030] bg-transparent focus-within:border-yt-blue transition-colors overflow-hidden ml-0 md:ml-8">
             <div className="flex-1 relative">
                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none sm:hidden">
                     <SearchIcon />
@@ -98,7 +95,7 @@ const Header: React.FC<HeaderProps> = ({ toggleSidebar, theme, toggleTheme }) =>
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="検索"
-                className="w-full h-10 bg-transparent pl-4 sm:pl-4 pr-4 text-base text-black dark:text-white placeholder-yt-light-gray focus:outline-none dark:bg-[#121212]"
+                className="w-full h-10 bg-transparent pl-10 sm:pl-4 pr-4 text-base text-black dark:text-white placeholder-yt-light-gray focus:outline-none dark:bg-[#121212]"
                 />
             </div>
             <button
@@ -113,8 +110,8 @@ const Header: React.FC<HeaderProps> = ({ toggleSidebar, theme, toggleTheme }) =>
       </div>
 
       {/* Right Section */}
-      <div className="flex items-center space-x-2 sm:space-x-4">
-        <button onClick={toggleTheme} className="p-2 rounded-full hover:bg-yt-spec-light-10 dark:hover:bg-yt-spec-10 active:scale-95 transform transition-transform duration-150" aria-label="テーマの切り替え">
+      <div className="flex items-center space-x-0 sm:space-x-2 md:space-x-4">
+        <button onClick={toggleTheme} className="p-2 rounded-full hover:bg-yt-spec-light-10 dark:hover:bg-yt-spec-10 active:scale-95 transform transition-transform duration-150 hidden sm:block" aria-label="テーマの切り替え">
           {theme === 'light' ? <MoonIcon /> : <LightbulbIcon />}
         </button>
         <div className="relative" ref={notificationRef}>
@@ -129,18 +126,19 @@ const Header: React.FC<HeaderProps> = ({ toggleSidebar, theme, toggleTheme }) =>
             {isNotificationOpen && <NotificationDropdown notifications={notifications} onClose={() => setIsNotificationOpen(false)} />}
         </div>
         
-        <div className="relative" ref={userMenuRef}>
+        <div className="relative" ref={settingsRef}>
             <button 
-                onClick={handleUserIconClick}
+                onClick={handleSettingsClick}
                 className="p-2 rounded-full hover:bg-yt-spec-light-10 dark:hover:bg-yt-spec-10 active:scale-95 transform transition-transform duration-150" 
                 aria-label="設定"
             >
                 <SettingsIcon />
             </button>
             
-            {isUserMenuOpen && (
-                <div className="absolute top-12 right-0 w-60 bg-yt-white dark:bg-yt-light-black rounded-lg shadow-lg border border-yt-spec-light-20 dark:border-yt-spec-20 py-2 overflow-hidden">
+            {isSettingsOpen && (
+                <div className="absolute top-12 right-0 w-60 bg-yt-white dark:bg-yt-light-black rounded-lg shadow-lg border border-yt-spec-light-20 dark:border-yt-spec-20 py-2 overflow-hidden z-50">
                     <div className="py-2">
+                        <div className="px-4 py-2 text-xs font-bold text-yt-light-gray uppercase tracking-wider">設定</div>
                         <label className="flex items-center justify-between px-4 py-2 hover:bg-yt-spec-light-10 dark:hover:bg-yt-spec-10 cursor-pointer">
                             <span className="text-sm text-black dark:text-white">Proxy経由で取得</span>
                             <div className="relative inline-block w-10 mr-2 align-middle select-none transition duration-200 ease-in">
@@ -155,6 +153,13 @@ const Header: React.FC<HeaderProps> = ({ toggleSidebar, theme, toggleTheme }) =>
                                 <div className={`toggle-label block overflow-hidden h-5 rounded-full cursor-pointer ${useProxy ? 'bg-yt-blue' : 'bg-yt-light-gray'}`}></div>
                             </div>
                         </label>
+                         <button 
+                            onClick={toggleTheme}
+                            className="w-full text-left flex items-center justify-between px-4 py-2 hover:bg-yt-spec-light-10 dark:hover:bg-yt-spec-10 sm:hidden"
+                        >
+                            <span className="text-sm text-black dark:text-white">テーマ変更</span>
+                             {theme === 'light' ? <MoonIcon /> : <LightbulbIcon />}
+                        </button>
                     </div>
                 </div>
             )}

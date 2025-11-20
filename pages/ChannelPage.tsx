@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { getChannelDetails, getChannelVideos, getChannelHome, mapHomeVideoToVideo } from '../utils/api';
@@ -94,7 +95,6 @@ const ChannelPage: React.FC = () => {
         } catch (err) {
             console.error(`Failed to load ${tab}`, err);
             if(tab === 'home') {
-                // Don't show critical error for home tab failure, just show empty or log it
                 console.warn("Home tab fetch failed, staying empty.");
             } else {
                 setError(`[${tab}] タブの読み込みに失敗しました。`);
@@ -154,12 +154,115 @@ const ChannelPage: React.FC = () => {
 
     const renderHomeTab = () => {
         if (!homeData) {
-             // If user disabled proxy or loading failed gracefully
-             return <div className="p-8 text-center text-yt-light-gray">ホームコンテンツを表示できません。Proxy設定を確認してください。</div>;
+             return <div className="p-8 text-center text-yt-light-gray">ホームコンテンツを読み込めませんでした。</div>;
         }
         
         return (
             <div className="flex flex-col gap-10 pb-10">
                 {/* Featured Video */}
                 {homeData.topVideo && (
-                    <div className="flex flex-col md:flex-row gap-6 border-b
+                    <div className="flex flex-col md:flex-row gap-6 border-b border-yt-spec-light-20 dark:border-yt-spec-20 pb-6">
+                         <div className="w-full md:w-[424px] aspect-video rounded-xl overflow-hidden flex-shrink-0">
+                            <Link to={`/watch/${homeData.topVideo.videoId}`}>
+                                <img src={homeData.topVideo.thumbnail} alt={homeData.topVideo.title} className="w-full h-full object-cover" />
+                            </Link>
+                        </div>
+                        <div className="flex-1 py-2">
+                            <Link to={`/watch/${homeData.topVideo.videoId}`}>
+                                <h3 className="text-xl font-bold mb-2 line-clamp-2">{homeData.topVideo.title}</h3>
+                            </Link>
+                            <p className="text-sm text-yt-light-gray mb-4 line-clamp-3">{homeData.topVideo.description}</p>
+                            <div className="flex items-center text-sm text-yt-light-gray font-medium">
+                                <span>{homeData.topVideo.viewCount}</span>
+                                <span className="mx-1">•</span>
+                                <span>{homeData.topVideo.published}</span>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Playlists (Shelves) */}
+                {homeData.playlists
+                    .filter(playlist => playlist.playlistId && playlist.items && playlist.items.length > 0) // Filter out invalid playlists
+                    .map((playlist, index) => (
+                    <div key={`${playlist.playlistId}-${index}`}>
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-lg font-bold">{playlist.title}</h3>
+                            <Link to={`/playlist/${playlist.playlistId}`} className="px-3 py-1 text-sm font-semibold text-yt-blue hover:bg-yt-blue/10 rounded-full">
+                                すべて再生
+                            </Link>
+                        </div>
+                        <HorizontalScrollContainer>
+                            {playlist.items.map(video => (
+                                <div key={video.videoId} className="w-52 flex-shrink-0">
+                                    <VideoCard video={mapHomeVideoToVideo(video, channelDetails)} hideChannelInfo />
+                                </div>
+                            ))}
+                        </HorizontalScrollContainer>
+                         <hr className="mt-6 border-yt-spec-light-20 dark:border-yt-spec-20" />
+                    </div>
+                ))}
+            </div>
+        );
+    };
+
+    return (
+        <div className="max-w-[1284px] mx-auto px-4 sm:px-6 lg:px-8">
+            {/* Banner */}
+            {channelDetails.bannerUrl && (
+                <div className="w-full aspect-[6/1] md:aspect-[6/1.2] lg:aspect-[6.2/1] rounded-xl overflow-hidden mb-6">
+                    <img src={channelDetails.bannerUrl} alt="Channel Banner" className="w-full h-full object-cover" />
+                </div>
+            )}
+
+            {/* Channel Header */}
+            <div className="flex flex-col md:flex-row items-center md:items-start gap-6 mb-6">
+                <div className="flex-shrink-0">
+                    <img src={channelDetails.avatarUrl} alt={channelDetails.name} className="w-20 h-20 md:w-40 md:h-40 rounded-full object-cover" />
+                </div>
+                <div className="flex-1 text-center md:text-left min-w-0">
+                    <h1 className="text-2xl md:text-4xl font-bold mb-2">{channelDetails.name}</h1>
+                    <div className="text-yt-light-gray text-sm md:text-base mb-3 flex flex-wrap justify-center md:justify-start gap-x-2">
+                         <span>{channelDetails.handle}</span>
+                         <span>•</span>
+                         <span>登録者数 {channelDetails.subscriberCount}人</span>
+                         <span>•</span>
+                         <span>動画 {channelDetails.videoCount}本</span>
+                    </div>
+                    <p className="text-yt-light-gray text-sm line-clamp-2 mb-4 max-w-3xl cursor-pointer" onClick={() => alert(channelDetails.description)}>
+                        {channelDetails.description}
+                    </p>
+                    <button 
+                        onClick={handleSubscriptionToggle} 
+                        className={`px-6 py-2 rounded-full text-sm font-medium transition-colors ${
+                            subscribed 
+                            ? 'bg-yt-light dark:bg-[#272727] text-black dark:text-white hover:bg-[#e5e5e5] dark:hover:bg-[#3f3f3f]' 
+                            : 'bg-black dark:bg-white text-white dark:text-black hover:opacity-90'
+                        }`}
+                    >
+                        {subscribed ? '登録済み' : 'チャンネル登録'}
+                    </button>
+                </div>
+            </div>
+
+            {/* Tabs */}
+            <div className="flex border-b border-yt-spec-light-20 dark:border-yt-spec-20 mb-6 overflow-x-auto no-scrollbar">
+                <TabButton tab="home" label="ホーム" />
+                <TabButton tab="videos" label="動画" />
+            </div>
+
+            {/* Content */}
+            {activeTab === 'home' && renderHomeTab()}
+            
+            {activeTab === 'videos' && (
+                <div>
+                     <VideoGrid videos={videos} isLoading={isTabLoading} hideChannelInfo />
+                     {isFetchingMore && <div className="text-center py-4"><div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-yt-blue mx-auto"></div></div>}
+                     <div ref={lastElementRef} className="h-10" />
+                </div>
+            )}
+        </div>
+    );
+};
+
+export default ChannelPage;

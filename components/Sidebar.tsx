@@ -38,7 +38,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen }) => {
 
   if (!isOpen) {
     return (
-        <div className="fixed top-14 left-0 w-[72px] h-full bg-yt-white dark:bg-yt-black flex flex-col items-center px-1 space-y-0 z-40">
+        <div className="fixed top-14 left-0 w-[72px] h-full bg-yt-white dark:bg-yt-black flex-col items-center px-1 space-y-0 z-40 hidden md:flex">
             <SmallSidebarItem to="/" icon={<HomeIcon />} label="ホーム" />
             <SmallSidebarItem to="/shorts" icon={<ShortsIcon />} label="ショート" />
             <SmallSidebarItem to="/subscriptions" icon={<SubscriptionsIcon />} label="登録チャンネル" />
@@ -48,7 +48,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen }) => {
   }
 
   return (
-    <aside className="fixed top-14 left-0 w-60 h-full bg-yt-white dark:bg-yt-black pb-3 hover:overflow-y-auto overflow-y-hidden z-40 group">
+    <aside className="fixed top-14 left-0 w-60 h-full bg-yt-white dark:bg-yt-black pb-3 hover:overflow-y-auto overflow-y-hidden z-40 group hidden md:block">
       <nav className="flex flex-col space-y-0.5 py-3">
         <SidebarItem to="/" icon={<HomeIcon />} label="ホーム" />
         <SidebarItem to="/shorts" icon={<ShortsIcon />} label="ショート" />

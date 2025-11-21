@@ -12,11 +12,21 @@ app.use((req, res, next) => {
 });
 
 // YouTubeクライアントの作成ヘルパー
+// 地域(JP)と言語(ja)を設定して、YouTube側に「日本からのアクセス」と認識させる
 const createYoutube = async () => {
   return await Innertube.create({ 
     lang: "ja", 
     location: "JP",
   });
+};
+
+// -------------------------------------------------------------------
+// 日本語判定ヘルパー関数
+// ひらがな、カタカナ、漢字が含まれているかチェック
+// -------------------------------------------------------------------
+const isJapanese = (text) => {
+  if (!text) return false;
+  return /[\u3040-\u309f\u30a0-\u30ff\u4e00-\u9faf]/.test(text);
 };
 
 // -------------------------------------------------------------------
@@ -47,18 +57,27 @@ app.get('/api/video', async (req, res) => {
       const relatedVideos = [];
       const MAX_VIDEOS = 50;
 
+      // 初期候補のフィルタリングと追加
       for (const video of allCandidates) {
+         // 日本語が含まれないタイトルは除外 (IDがある動画オブジェクトの場合のみチェック)
+         if (video.title?.text && !isJapanese(video.title.text)) continue;
+
          if(video.id) seenIds.add(video.id);
          relatedVideos.push(video);
       }
 
+      // 足りない分を続きから取得
       while (relatedVideos.length < MAX_VIDEOS && continuationCount < 2) {
           if (typeof currentFeed.getWatchNextContinuation === 'function') {
               currentFeed = await currentFeed.getWatchNextContinuation();
               if (currentFeed && Array.isArray(currentFeed.watch_next_feed)) {
                   for (const video of currentFeed.watch_next_feed) {
                       if (relatedVideos.length >= MAX_VIDEOS) break;
+                      
+                      // IDチェック、重複チェック、そして日本語チェック
                       if (video.id && !seenIds.has(video.id)) {
+                          if (video.title?.text && !isJapanese(video.title.text)) continue; // 日本語以外スキップ
+
                           seenIds.add(video.id);
                           relatedVideos.push(video);
                       }
@@ -97,7 +116,7 @@ app.get('/api/search', async (req, res) => {
     if (!query) return res.status(400).json({ error: "Missing search query" });
 
     const targetPage = parseInt(page);
-    const ITEMS_PER_PAGE = 50; // ユーザーリクエストにより50件に設定
+    const ITEMS_PER_PAGE = 50; 
     
     let search = await youtube.search(query);
     
@@ -106,19 +125,39 @@ app.get('/api/search', async (req, res) => {
     let allChannels = [...(search.channels || [])];
     let allPlaylists = [...(search.playlists || [])];
 
+    // フィルタリング関数
+    const filterItems = (items) => items.filter(item => {
+        // タイトルが存在し、かつ日本語が含まれるものだけを残す
+        // (チャンネルなどの場合、title.textがない場合もあるので構造に合わせて調整)
+        const title = item.title?.text || item.title || item.name; 
+        return title && isJapanese(title);
+    });
+
+    // 初期ロード分をフィルタリング
+    allVideos = filterItems(allVideos);
+    allShorts = filterItems(allShorts);
+    
     // 指定ページ分までデータを確保するために続きを取得
     const requiredCount = targetPage * ITEMS_PER_PAGE;
     
     let continuationAttempts = 0;
-    // 50件ずつ取得しようとすると回数が必要になるため、制限を緩める
     const MAX_ATTEMPTS = 20;
 
+    // 「フィルタリング後の動画数」が足りるまでループ
     while (allVideos.length < requiredCount && search.has_continuation && continuationAttempts < MAX_ATTEMPTS) {
         search = await search.getContinuation();
-        if (search.videos) allVideos.push(...search.videos);
-        if (search.shorts) allShorts.push(...search.shorts);
+        
+        if (search.videos) {
+            const jpVideos = filterItems(search.videos);
+            allVideos.push(...jpVideos);
+        }
+        if (search.shorts) {
+            const jpShorts = filterItems(search.shorts);
+            allShorts.push(...jpShorts);
+        }
         if (search.channels) allChannels.push(...search.channels);
         if (search.playlists) allPlaylists.push(...search.playlists);
+        
         continuationAttempts++;
     }
 
@@ -127,9 +166,9 @@ app.get('/api/search', async (req, res) => {
 
     const pagedVideos = allVideos.slice(startIndex, endIndex);
     
-    // 2ページ目以降は動画のみ返す（重複防止とパフォーマンスのため）
+    // 2ページ目以降は動画のみ返す
     const pagedShorts = targetPage === 1 ? allShorts : [];
-    const pagedChannels = targetPage === 1 ? allChannels : [];
+    const pagedChannels = targetPage === 1 ? allChannels : []; // チャンネルはフィルタリングしない（検索語句に一致していれば英語でも表示するため）
     const pagedPlaylists = targetPage === 1 ? allPlaylists : [];
 
     // まだ動画が残っているか、続きが取得可能なら次ページありとする
@@ -207,9 +246,6 @@ app.get('/api/channel', async (req, res) => {
 
     const targetPage = parseInt(page);
     
-    // ページネーションロジック修正: 
-    // 指定されたページの動画「のみ」を取得して返すように変更
-    // 以前は全ページの動画を累積して返していたため、重複が発生していた
     if (targetPage > 1) {
         for (let i = 1; i < targetPage; i++) {
             if (videosFeed.has_continuation) {
@@ -231,7 +267,6 @@ app.get('/api/channel', async (req, res) => {
         avatar = avatar.url;
     }
 
-    // バナー抽出ロジックの強化
     let banner = channel.metadata?.banner || channel.header?.banner || null;
     if (Array.isArray(banner) && banner.length > 0) {
         banner = banner[0].url;
@@ -270,7 +305,6 @@ app.get('/api/channel-home-proxy', async (req, res) => {
     const { id } = req.query;
     if (!id) return res.status(400).json({ error: "Missing channel id" });
 
-    // 外部APIからデータを取得
     const response = await fetch(`https://siawaseok.duckdns.org/api/channel/${id}`);
     if (!response.ok) {
         return res.status(response.status).json({ error: "Failed to fetch from external API" });
@@ -372,10 +406,15 @@ app.get('/api/playlist', async (req, res) => {
 app.get('/api/fvideo', async (req, res) => {
   try {
     const youtube = await createYoutube();
-    // 一般的な急上昇を取得 (Music指定を解除)
     const trending = await youtube.getTrending();
-    // 構造の揺れに対応
-    const videos = trending.videos || trending.items || trending.contents || [];
+    let videos = trending.videos || trending.items || trending.contents || [];
+
+    // 急上昇も海外動画が混ざることがあるため日本語フィルターを適用
+    videos = videos.filter(v => {
+        const title = v.title?.text || v.title;
+        return title && isJapanese(title);
+    });
+
     res.status(200).json({ videos });
   } catch (err) { 
       console.error('Error in /api/fvideo:', err); 

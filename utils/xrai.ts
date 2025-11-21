@@ -3,8 +3,9 @@ import type { Video, Channel } from '../types';
 
 // --- Types ---
 
-interface UserProfile {
+export interface UserProfile {
   keywords: Map<string, number>; // The "User Vector"
+  magnitude: number; // For Cosine Similarity normalization
 }
 
 interface UserSources {
@@ -25,7 +26,8 @@ interface ScoringContext {
 const JAPANESE_STOP_WORDS = new Set([
   'の', 'に', 'は', 'を', 'が', 'で', 'です', 'ます', 'こと', 'もの', 'これ', 'それ', 'あれ',
   'いる', 'する', 'ある', 'ない', 'から', 'まで', 'と', 'も', 'や', 'など', 'さん', 'ちゃん',
-  'about', 'and', 'the', 'to', 'a', 'of', 'in', 'for', 'on', 'with', 'as', 'at', 'movie', 'video'
+  'about', 'and', 'the', 'to', 'a', 'of', 'in', 'for', 'on', 'with', 'as', 'at', 'movie', 'video',
+  'official', 'channel', 'music', 'mv', 'pv'
 ]);
 
 // Explicitly cast Intl to any for safety
@@ -71,6 +73,16 @@ const containsJapanese = (text: string): boolean => {
     return /[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF]/.test(text);
 };
 
+// --- Vector Operations ---
+
+const calculateMagnitude = (vector: Map<string, number>): number => {
+    let sumSq = 0;
+    for (const val of vector.values()) {
+        sumSq += val * val;
+    }
+    return Math.sqrt(sumSq);
+};
+
 // --- User Profile Builder (Vector Construction) ---
 
 export const buildUserProfile = (sources: UserSources): UserProfile => {
@@ -83,44 +95,56 @@ export const buildUserProfile = (sources: UserSources): UserProfile => {
     });
   };
 
-  // 1. Search History (High Intent)
+  // 1. Search History (High Intent - Explicit)
   sources.searchHistory.slice(0, 30).forEach((term, index) => {
     // Exponential decay: recent searches are much more important
-    const weight = 8.0 * Math.exp(-index / 8); 
+    const weight = 10.0 * Math.exp(-index / 5); 
     addKeywords(term, weight);
   });
 
-  // 2. Watch History (Implicit Interest)
+  // 2. Watch History (Implicit Interest - Deep Learning Training Data)
   sources.watchHistory.slice(0, 100).forEach((video, index) => {
-    const weight = 4.0 * Math.exp(-index / 20);
+    const weight = 5.0 * Math.exp(-index / 20);
     addKeywords(video.title, weight);
     addKeywords(video.channelName, weight * 1.5); 
   });
 
-  // 3. Subscriptions (Long-term Affinity)
+  // 3. Subscriptions (Long-term Affinity - Bias)
   sources.subscribedChannels.forEach(channel => {
-    addKeywords(channel.name, 3.0);
+    addKeywords(channel.name, 4.0);
   });
   
-  return { keywords };
+  const magnitude = calculateMagnitude(keywords);
+
+  return { keywords, magnitude };
+};
+
+// --- Inference Helpers ---
+
+// Infers the top "Concepts" (keywords) from the user vector
+export const inferTopInterests = (profile: UserProfile, limit: number = 6): string[] => {
+    return [...profile.keywords.entries()]
+        .sort((a, b) => b[1] - a[1])
+        .map(e => e[0])
+        .slice(0, limit);
 };
 
 // --- Parsing Helpers ---
 
-const parseUploadedAt = (uploadedAt: string): number => {
-    if (!uploadedAt) return 999;
+const parseUploadedAtDays = (uploadedAt: string): number => {
+    if (!uploadedAt) return 365; // Default to old
     const text = uploadedAt.toLowerCase();
     const numMatch = text.match(/(\d+)/);
     const num = numMatch ? parseInt(numMatch[1], 10) : 0;
 
     // Convert everything to "Days ago" approximation
-    if (text.includes('分前') || text.includes('minute')) return 0;
-    if (text.includes('時間前') || text.includes('hour')) return 0.1;
+    if (text.includes('分前') || text.includes('minute')) return 0.001;
+    if (text.includes('時間前') || text.includes('hour')) return num / 24;
     if (text.includes('日') || text.includes('day')) return num;
     if (text.includes('週') || text.includes('week')) return num * 7;
     if (text.includes('月') || text.includes('month')) return num * 30;
     if (text.includes('年') || text.includes('year')) return num * 365;
-    return 999; 
+    return 365; 
 };
 
 const parseViews = (viewsStr: string): number => {
@@ -152,84 +176,89 @@ export const rankVideos = (
     
     const fullText = `${video.title} ${video.channelName} ${video.descriptionSnippet || ''}`.toLowerCase();
     
-    // 1. Negative Filtering
+    // 1. Negative Filtering (Blocking)
     if (context.ngKeywords.some(ng => fullText.includes(ng.toLowerCase()))) continue;
     if (context.ngChannels.includes(video.channelId)) continue;
     
     // 2. Language Filtering (Strict Japanese Preference)
-    // If the video doesn't contain Japanese characters, penalize heavily
-    // unless the user has explicitly searched for English terms (not implemented here for simplicity, just hard penalize)
     const isJapanese = containsJapanese(fullText);
     let languagePenalty = 1.0;
     if (!isJapanese) {
-        languagePenalty = 0.1; // 90% score reduction for non-Japanese content
+        languagePenalty = 0.05; // Severe penalty for non-Japanese
     }
 
-    // 3. History Penalty (Demote watched videos)
-    let historyPenalty = 1.0;
-    if (seenIds.has(video.id)) {
-        historyPenalty = context.mode === 'discovery' ? 0.01 : 0.2; 
-    }
-
-    // 4. Semantic Relevance (Vector Dot Product Simulation)
-    let relevanceScore = 0;
+    // 3. Vector Inference (Cosine Similarity)
+    let dotProduct = 0;
+    let videoVectorMagSq = 0;
+    
     const videoKeywords = extractKeywords(fullText);
     
-    // Calculate coverage: How many of the video's words match user interests?
     videoKeywords.forEach(kw => {
-      if (userProfile.keywords.has(kw)) {
-        relevanceScore += userProfile.keywords.get(kw)!;
-      }
+        // Term Frequency in this video (simplified to 1 for binary presence, could be improved)
+        const weight = 1; 
+        videoVectorMagSq += weight * weight;
+
+        if (userProfile.keywords.has(kw)) {
+            dotProduct += userProfile.keywords.get(kw)! * weight;
+        }
     });
 
-    // Normalize by length to prevent long titles from always winning
-    if (videoKeywords.length > 0) {
-        relevanceScore = relevanceScore / Math.sqrt(videoKeywords.length);
+    let cosineSimilarity = 0;
+    if (userProfile.magnitude > 0 && videoVectorMagSq > 0) {
+        cosineSimilarity = dotProduct / (userProfile.magnitude * Math.sqrt(videoVectorMagSq));
     }
 
-    // 5. Popularity (Logarithmic)
+    // 4. Velocity / Trending Score (Deep Thinking for "New & Hot")
+    // Velocity = Views / (Days + small_epsilon)
+    const daysAgo = parseUploadedAtDays(video.uploadedAt);
     const views = parseViews(video.views);
-    const popularityScore = Math.log10(views + 1); // 0 to ~9
+    
+    // Calculate "Views Per Day" velocity
+    const velocity = views / (Math.max(daysAgo, 0.1)); 
+    const velocityScore = Math.log10(velocity + 1); // Normalize to 0-8 range typically
 
-    // 6. Freshness (Exponential Decay)
-    const daysAgo = parseUploadedAt(video.uploadedAt);
-    let freshnessScore = 0;
-    if (daysAgo <= 1) freshnessScore = 15;
-    else if (daysAgo <= 3) freshnessScore = 10;
-    else if (daysAgo <= 7) freshnessScore = 5;
-    else freshnessScore = Math.max(0, 5 - Math.log2(daysAgo));
+    // 5. Freshness Boost
+    let freshnessBoost = 1.0;
+    if (daysAgo < 3) freshnessBoost = 1.5; // Boost videos < 3 days old
+    if (daysAgo < 1) freshnessBoost = 2.0; // Huge boost for < 24h
 
-    // --- WEIGHTING ---
+    // --- WEIGHTING & SCORING ---
     
     let finalScore = 0;
 
+    // Base score comes from Similarity (Relevance)
+    // We scale it up (e.g., 0.5 -> 50 points)
+    const relevanceBase = cosineSimilarity * 100;
+
     if (context.mode === 'discovery') {
-        // Discovery Mode: RELEVANCE IS KEY. Freshness helps, but only if relevant.
-        // Previous issue: Freshness weight was too high (3.0) vs Relevance (2.0), allowing irrelevant fresh videos.
-        // New weights: Relevance dominant (5.0).
-        finalScore = (
-            (relevanceScore * 5.0) + 
-            (popularityScore * 1.0) + 
-            (freshnessScore * 2.0) 
-        );
+        // Discovery Mode: High Relevance + High Velocity + Freshness
+        // We want "Relevant Trending" videos.
+        // If Relevance is low, Velocity shouldn't save it (prevents unrelated viral videos).
+        
+        if (relevanceBase > 5) { // Threshold: Must be somewhat relevant
+            finalScore = relevanceBase * (1 + (velocityScore * 0.5)) * freshnessBoost;
+        } else {
+            finalScore = relevanceBase; // Low relevance = Low score
+        }
+
     } else {
-        // Comfort Mode: Prioritize Relevance heavily.
-        finalScore = (
-            (relevanceScore * 5.0) + 
-            (popularityScore * 0.5) + 
-            (freshnessScore * 0.5)
-        );
+        // Comfort Mode: Pure Relevance + History Affinity
+        let historyBoost = 1.0;
+        if (video.channelId && context.watchHistory.some(w => w.channelId === video.channelId)) {
+            historyBoost = 1.3; // Boost known channels
+        }
+        finalScore = relevanceBase * historyBoost;
     }
     
-    // Apply penalties and boosts
-    // If relevance is zero (completely unrelated), crush the score regardless of freshness.
-    if (relevanceScore === 0) {
-        finalScore = finalScore * 0.1;
+    // History Penalty (Already watched?)
+    if (seenIds.has(video.id)) {
+        finalScore *= 0.01; 
     }
 
-    // 7. Jitter
-    const jitter = (Math.random() - 0.5) * 0.1; // +/- 5%
-    finalScore = finalScore * (1 + jitter) * historyPenalty * languagePenalty;
+    finalScore *= languagePenalty;
+
+    // Jitter for variety
+    finalScore *= (0.95 + Math.random() * 0.1);
 
     scoredVideos.push({ video, score: finalScore });
   }
@@ -237,10 +266,10 @@ export const rankVideos = (
   // Sort descending
   scoredVideos.sort((a, b) => b.score - a.score);
 
-  // 8. Diversity Filter (Clustering check)
+  // 6. Diversity Filter (Clustering)
   const finalRankedList: Video[] = [];
   const channelCount = new Map<string, number>();
-  const MAX_PER_CHANNEL = context.mode === 'discovery' ? 2 : 4; 
+  const MAX_PER_CHANNEL = context.mode === 'discovery' ? 1 : 3; // Strict diversity for discovery
 
   for (const { video } of scoredVideos) {
     const count = channelCount.get(video.channelId) || 0;

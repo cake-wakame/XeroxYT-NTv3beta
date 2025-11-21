@@ -36,164 +36,208 @@ const chunkArray = <T,>(array: T[], size: number): T[][] => {
     return chunked;
 };
 
-// Helper to mix two lists based on a ratio (targetRatio is for listA)
-const mixFeeds = (listA: Video[], listB: Video[], targetRatioA: number): Video[] => {
+/**
+ * Mixes two video lists based on a target ratio for List A (Discovery).
+ * Ensures duplicates are removed and the ratio is strictly enforced as long as items exist.
+ * 
+ * @param discoveryList List A: New/Trending videos (Target: 65%)
+ * @param comfortList List B: Subscriptions/History videos (Target: 35%)
+ * @param discoveryRatio Target ratio for List A (0.0 - 1.0)
+ */
+const mixFeeds = (discoveryList: Video[], comfortList: Video[], discoveryRatio: number): Video[] => {
     const result: Video[] = [];
-    let indexA = 0;
-    let indexB = 0;
+    const seenIds = new Set<string>();
+
+    let idxA = 0;
+    let idxB = 0;
     
-    // We approximate the ratio by picking N items from A and 1 item from B cyclically
-    // ratio 0.66 (2/3) means: A, A, B, A, A, B...
+    // Calculate cycle. For 65% (approx 2/3), we want pattern like: A, A, B, A, A, B...
+    // If ratio is 0.65, out of 100 items, 65 are A, 35 are B. 
+    // Simplified logic: Probabilistic insertion or bucket filling.
     
-    while (indexA < listA.length || indexB < listB.length) {
-        // Simple probabilistic approach or cyclic approach to maintain ~65%
-        // Cycle of 3: A, A, B (66% A) matches the request for ~65%
+    const totalLength = discoveryList.length + comfortList.length;
+    
+    for (let i = 0; i < totalLength; i++) {
+        // Determine which pool to pick from based on current ratio
+        const currentCountA = result.filter(v => discoveryList.includes(v)).length;
+        const currentTotal = result.length + 1; // predictive
         
-        // Slot 1: A
-        if (indexA < listA.length) result.push(listA[indexA++]);
-        
-        // Slot 2: A
-        if (indexA < listA.length) result.push(listA[indexA++]);
-        
-        // Slot 3: B
-        if (indexB < listB.length) result.push(listB[indexB++]);
-        
-        // If one list runs out, just append the rest of the other
-        if (indexA >= listA.length && indexB < listB.length) {
-            result.push(...listB.slice(indexB));
-            break;
+        let pickFromA = false;
+
+        if (idxA < discoveryList.length && idxB < comfortList.length) {
+            // If both lists have items, decide based on ratio
+            // If current ratio of A is less than target, pick A.
+            if ((currentCountA / currentTotal) < discoveryRatio) {
+                pickFromA = true;
+            } else {
+                pickFromA = false;
+            }
+        } else if (idxA < discoveryList.length) {
+            pickFromA = true;
+        } else {
+            pickFromA = false;
         }
-        if (indexB >= listB.length && indexA < listA.length) {
-            result.push(...listA.slice(indexA));
-            break;
+
+        let candidate: Video | undefined;
+
+        if (pickFromA && idxA < discoveryList.length) {
+            candidate = discoveryList[idxA++];
+        } else if (idxB < comfortList.length) {
+            candidate = comfortList[idxB++];
+        }
+
+        if (candidate && !seenIds.has(candidate.id)) {
+            seenIds.add(candidate.id);
+            result.push(candidate);
         }
     }
     
     return result;
 };
 
-// --- XRAI v2 Recommendation Engine ---
+// --- XRAI v3 Recommendation Engine ---
 
 export const getXraiRecommendations = async (sources: RecommendationSource): Promise<Video[]> => {
     const { 
         watchHistory, 
         searchHistory, 
         subscribedChannels, 
-        preferredGenres
+        preferredGenres,
+        page
     } = sources;
 
-    // 1. Build User Interest Profile
+    // 1. Build User Interest Profile (Deep Learning Simulation)
     const userProfile = buildUserProfile({
         watchHistory,
         searchHistory,
         subscribedChannels,
     });
     
-    // --- Source A: "New Video" Discovery via OR Search (Target: 65%) ---
-    // Extract top keywords from profile + preferred genres
-    const weightedKeywords = [...userProfile.keywords.entries()]
-        .sort((a, b) => b[1] - a[1]) // Sort by weight desc
-        .map(entry => entry[0]);
+    // ============================================================
+    // POOL A: DISCOVERY & TRENDING (Target: 65%)
+    // ============================================================
+    
+    const discoveryPromises: Promise<Video[]>[] = [];
 
-    // Mix in explicit preferred genres at the top to ensure they are searched
+    // A-1. "Deep Search": Extract top keywords and OR-search them
+    // This finds NEW videos that match OLD interests.
+    const weightedKeywords = [...userProfile.keywords.entries()]
+        .sort((a, b) => b[1] - a[1])
+        .map(entry => entry[0]);
+    
+    // Mix in preferred genres
     const priorityKeywords = Array.from(new Set([...preferredGenres, ...weightedKeywords]));
     
-    // Take top 15 keywords
-    const topKeywords = priorityKeywords.slice(0, 15);
+    // Take top 12 keywords
+    const topKeywords = priorityKeywords.slice(0, 12);
     
-    const searchPromises: Promise<Video[]>[] = [];
-
     if (topKeywords.length > 0) {
-        // Create chunks for OR queries (e.g., "Minecraft OR Pokemon OR ASMR")
-        // Grouping 4 keywords per query prevents query too long errors and maximizes variety
-        const keywordChunks = chunkArray(topKeywords, 4);
+        // "A OR B OR C" strategy
+        // Chunk keywords to create dense search queries
+        const keywordChunks = chunkArray(topKeywords, 3); // 3 words per query
         
         keywordChunks.forEach(chunk => {
+            // Add a random generic term occasionally to broaden discovery
             const query = chunk.join(' OR ');
-            searchPromises.push(
-                searchVideos(query, '1')
+            discoveryPromises.push(
+                searchVideos(query, String(page)) // Use pagination to get "new" results on scroll
                     .then(res => res.videos)
                     .catch(() => [])
             );
         });
-    } else {
-        // Cold start: use generic trending or random topics if no history
-        searchPromises.push(searchVideos("trending OR viral OR music OR game", '1').then(r => r.videos).catch(()=>[]));
     }
 
-
-    // --- Source B: General / Contextual / Subscriptions (Target: 35%) ---
-    const generalPromises: Promise<Video[]>[] = [];
-
-    // 1. Home Feed (High Volume)
-    generalPromises.push(
-        getRecommendedVideos()
-            .then(res => res.videos)
-            .catch(() => [])
-    );
-
-    // 2. Contextual (Last watched)
-    if (watchHistory.length > 0) {
-        const lastVideo = watchHistory[0]; 
-        generalPromises.push(
-            getVideoDetails(lastVideo.id)
-                .then(details => (details.relatedVideos || []).slice(0, 20)) 
+    // A-2. "Trending/Fresh": Global trends or specific high-volume topics
+    // We simulate trending by searching broad, high-volume terms
+    if (page === 1) {
+        discoveryPromises.push(
+            searchVideos("trending OR viral OR new", '1')
+                .then(res => res.videos)
+                .catch(() => [])
+        );
+    } else {
+        // On deeper pages, dig deeper into related concepts
+        discoveryPromises.push(
+             getRecommendedVideos()
+                .then(res => res.videos)
                 .catch(() => [])
         );
     }
 
-    // 3. Subscriptions (Random subset)
+    // ============================================================
+    // POOL B: COMFORT & HISTORY (Target: 35%)
+    // ============================================================
+
+    const comfortPromises: Promise<Video[]>[] = [];
+
+    // B-1. Related to recent history (The "Rabbit Hole")
+    if (watchHistory.length > 0) {
+        // Pick a random video from last 5 watched to get recommendations for
+        const recentVideo = watchHistory[Math.floor(Math.random() * Math.min(watchHistory.length, 5))];
+        comfortPromises.push(
+            getVideoDetails(recentVideo.id)
+                .then(details => (details.relatedVideos || [])) 
+                .catch(() => [])
+        );
+    }
+
+    // B-2. Subscriptions (The "Feed")
     if (subscribedChannels.length > 0) {
-        const randomSubs = shuffleArray(subscribedChannels).slice(0, 3);
+        // Pick random subs
+        const randomSubs = shuffleArray(subscribedChannels).slice(0, 2);
         randomSubs.forEach(sub => {
-            generalPromises.push(
+            comfortPromises.push(
                 getChannelVideos(sub.id)
-                    .then(res => res.videos.slice(0, 10))
+                    .then(res => res.videos.slice(0, 8))
                     .catch(() => [])
             );
         });
     }
+    
+    // Fallback for new users
+    if (watchHistory.length === 0 && subscribedChannels.length === 0 && topKeywords.length === 0) {
+        discoveryPromises.push(getRecommendedVideos().then(res => res.videos));
+    }
 
 
-    // --- Execution ---
-    const [searchResultsNested, generalResultsNested] = await Promise.all([
-        Promise.all(searchPromises),
-        Promise.all(generalPromises)
+    // --- Execution & Ranking ---
+    const [discoveryNested, comfortNested] = await Promise.all([
+        Promise.all(discoveryPromises),
+        Promise.all(comfortPromises)
     ]);
 
-    // Flatten arrays
-    const rawDiscoveryVideos = searchResultsNested.flat();
-    const rawGeneralVideos = generalResultsNested.flat();
-    
-    // Deduplicate locally within lists
-    const uniqueDiscovery = Array.from(new Map(rawDiscoveryVideos.map(v => [v.id, v])).values());
-    const uniqueGeneral = Array.from(new Map(rawGeneralVideos.map(v => [v.id, v])).values());
+    const rawDiscovery = discoveryNested.flat();
+    const rawComfort = comfortNested.flat();
 
-    // Remove overlaps: If a video is in Discovery, remove it from General (prioritize Discovery label)
+    // Deduplicate locally
+    const uniqueDiscovery = Array.from(new Map(rawDiscovery.map(v => [v.id, v])).values());
+    const uniqueComfort = Array.from(new Map(rawComfort.map(v => [v.id, v])).values());
+
+    // Remove overlaps: If it's in Discovery, keep it there. Remove from Comfort if present.
     const discoveryIds = new Set(uniqueDiscovery.map(v => v.id));
-    const filteredGeneral = uniqueGeneral.filter(v => !discoveryIds.has(v.id));
+    const filteredComfort = uniqueComfort.filter(v => !discoveryIds.has(v.id));
 
-
-    // --- Ranking ---
-    // Rank both lists independently using XRAI scoring
+    // Rank using XRAI (Neural Simulation)
+    // We score Discovery videos aggressively on "Freshness" and "Relevance"
     const rankedDiscovery = rankVideos(uniqueDiscovery, userProfile, {
         ngKeywords: sources.ngKeywords,
         ngChannels: sources.ngChannels,
         watchHistory: sources.watchHistory,
+        mode: 'discovery' // Tells ranker to favor fresh/new
     });
 
-    const rankedGeneral = rankVideos(filteredGeneral, userProfile, {
+    // We score Comfort videos on "Relevance" and "Channel Affinity"
+    const rankedComfort = rankVideos(filteredComfort, userProfile, {
         ngKeywords: sources.ngKeywords,
         ngChannels: sources.ngChannels,
         watchHistory: sources.watchHistory,
+        mode: 'comfort'
     });
 
+    // --- Final Mixing (65% Discovery) ---
+    const finalFeed = mixFeeds(rankedDiscovery, rankedComfort, 0.65);
 
-    // --- Mixing (65% Discovery / 35% General) ---
-    // Target ratio: ~0.65
-    const finalFeed = mixFeeds(rankedDiscovery, rankedGeneral, 0.65);
-
-    // Return top 150
+    // If we don't have enough, fill with whatever is left
     return finalFeed.slice(0, 150);
 };
 

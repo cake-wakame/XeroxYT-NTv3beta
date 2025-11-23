@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import * as ReactRouterDOM from 'react-router-dom';
 import { MenuIcon, YouTubeLogo, SearchIcon, BellIcon, LightbulbIcon, MoonIcon, SettingsIcon, SaveIcon, DownloadIcon } from './icons/Icons';
@@ -5,7 +6,6 @@ import { useNotification } from '../contexts/NotificationContext';
 import { useSearchHistory } from '../contexts/SearchHistoryContext';
 import { usePreference } from '../contexts/PreferenceContext';
 import NotificationDropdown from './NotificationDropdown';
-import PreferenceModal from './PreferenceModal';
 
 const { useNavigate, Link } = ReactRouterDOM;
 
@@ -19,7 +19,6 @@ const Header: React.FC<HeaderProps> = ({ toggleSidebar, theme, toggleTheme }) =>
   const [searchQuery, setSearchQuery] = useState('');
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [isPreferenceModalOpen, setIsPreferenceModalOpen] = useState(false);
   const [useProxy, setUseProxy] = useState(localStorage.getItem('useChannelHomeProxy') !== 'false');
 
   const { notifications, unreadCount, markAsRead } = useNotification();
@@ -123,14 +122,6 @@ const Header: React.FC<HeaderProps> = ({ toggleSidebar, theme, toggleTheme }) =>
                 <SearchIcon />
             </button>
           </div>
-          <button
-            type="button"
-            onClick={() => setIsPreferenceModalOpen(true)}
-            className="w-10 h-10 rounded-full bg-yt-light dark:bg-[#222222] hover:bg-stone-200 dark:hover:bg-[#3f3f3f] flex items-center justify-center flex-shrink-0 text-xl font-bold text-yt-icon transition-colors"
-            title="おすすめ設定"
-          >
-            !
-          </button>
         </form>
       </div>
 
@@ -178,13 +169,6 @@ const Header: React.FC<HeaderProps> = ({ toggleSidebar, theme, toggleTheme }) =>
                                 <div className={`toggle-label block overflow-hidden h-5 rounded-full cursor-pointer ${useProxy ? 'bg-yt-blue' : 'bg-yt-light-gray'}`}></div>
                             </div>
                         </label>
-                        
-                         <button 
-                            onClick={() => { setIsPreferenceModalOpen(true); setIsSettingsOpen(false); }}
-                            className="w-full text-left px-4 py-2 hover:bg-yt-spec-light-10 dark:hover:bg-yt-spec-10 text-sm text-black dark:text-white"
-                        >
-                            おすすめ設定
-                        </button>
 
                          <button 
                             onClick={toggleTheme}
@@ -229,7 +213,6 @@ const Header: React.FC<HeaderProps> = ({ toggleSidebar, theme, toggleTheme }) =>
             )}
         </div>
       </div>
-      <PreferenceModal isOpen={isPreferenceModalOpen} onClose={() => setIsPreferenceModalOpen(false)} />
     </header>
   );
 };

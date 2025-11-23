@@ -1,6 +1,6 @@
 
 import type { Video, Channel } from '../types';
-import { searchVideos, getRecommendedVideos } from './api';
+import { searchVideos } from './api';
 import { extractKeywords } from './xrai';
 
 // --- Types ---
@@ -9,8 +9,6 @@ interface RecommendationSource {
     searchHistory: string[];
     watchHistory: Video[];
     subscribedChannels: Channel[];
-    preferredGenres: string[];
-    preferredChannels: string[];
     ngKeywords: string[];
     ngChannels: string[];
     page: number;
@@ -34,13 +32,13 @@ const cleanTitleForSearch = (title: string): string => {
 };
 
 /**
- * Random History-Based Recommendation Engine
+ * XRAI: Random History-Based Recommendation Engine
  * 
  * Logic:
  * 1. Pick 10 random videos from watch history as "seeds".
- * 2. Search for related content for ALL 10 seeds to get a large candidate pool (5x volume).
- * 3. Apply strict keyword filtering: A candidate MUST match keywords from user's history to be included.
- * 4. Shuffle thoroughly to mix categories.
+ * 2. Search for related content for ALL 10 seeds.
+ * 3. Strict Keyword Matching: Videos must match history keywords to be relevant.
+ * 4. Shuffle.
  */
 export const getXraiRecommendations = async (sources: RecommendationSource): Promise<Video[]> => {
     const { 
@@ -110,7 +108,7 @@ export const getXraiRecommendations = async (sources: RecommendationSource): Pro
         });
     }
 
-    // --- 4. NG FILTERING ---
+    // --- 4. NG FILTERING (Safety) ---
     candidates = candidates.filter(v => {
         const fullText = `${v.title} ${v.channelName}`.toLowerCase();
         if (ngKeywords.some(ng => fullText.includes(ng.toLowerCase()))) return false;
@@ -119,17 +117,5 @@ export const getXraiRecommendations = async (sources: RecommendationSource): Pro
     });
 
     // --- 5. SHUFFLING ---
-    // Mix everything together so it's not clustered by topic
     return shuffleArray(candidates);
 };
-
-// Legacy function kept for compatibility if needed, but UI uses getXraiRecommendations now
-export const getLegacyRecommendations = async (): Promise<Video[]> => {
-    try {
-        const { videos } = await getRecommendedVideos();
-        return shuffleArray(videos); 
-    } catch (error) {
-        console.error("Failed to fetch legacy recommendations:", error);
-        return [];
-    }
-}

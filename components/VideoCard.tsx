@@ -1,4 +1,5 @@
-import React, { useState, useRef, useEffect } from 'react';
+
+import React, { useState, useRef, useEffect, memo } from 'react';
 import * as ReactRouterDOM from 'react-router-dom';
 import type { Video } from '../types';
 import { ChevronRightIcon } from './icons/Icons';
@@ -10,7 +11,7 @@ interface VideoCardProps {
   hideChannelInfo?: boolean;
 }
 
-const VideoCard: React.FC<VideoCardProps> = ({ video, hideChannelInfo = false }) => {
+const VideoCard: React.FC<VideoCardProps> = memo(({ video, hideChannelInfo = false }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLDivElement>(null);
@@ -34,9 +35,11 @@ const VideoCard: React.FC<VideoCardProps> = ({ video, hideChannelInfo = false })
               setIsMenuOpen(false);
           }
       };
-      document.addEventListener('mousedown', handleClickOutside);
+      if(isMenuOpen) {
+          document.addEventListener('mousedown', handleClickOutside);
+      }
       return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+  }, [isMenuOpen]);
 
   const hasCollaborators = video.collaborators && video.collaborators.length > 1;
   
@@ -46,6 +49,8 @@ const VideoCard: React.FC<VideoCardProps> = ({ video, hideChannelInfo = false })
         <img 
             src={video.thumbnailUrl} 
             alt={video.title} 
+            loading="lazy"
+            decoding="async"
             className="w-full h-full object-cover" 
         />
         {video.duration && (
@@ -58,7 +63,7 @@ const VideoCard: React.FC<VideoCardProps> = ({ video, hideChannelInfo = false })
         {!hideChannelInfo && video.channelId && (
           <div className="flex-shrink-0 mr-3 relative">
             <Link to={`/channel/${video.channelId}`} onClick={handleChannelLinkClick}>
-              <img src={video.channelAvatarUrl} alt={video.channelName} className="w-9 h-9 rounded-full object-cover" />
+              <img src={video.channelAvatarUrl} alt={video.channelName} loading="lazy" className="w-9 h-9 rounded-full object-cover" />
             </Link>
           </div>
         )}
@@ -94,7 +99,7 @@ const VideoCard: React.FC<VideoCardProps> = ({ video, hideChannelInfo = false })
                                                 className="flex items-center px-3 py-2 hover:bg-yt-spec-light-10 dark:hover:bg-yt-spec-10"
                                                 onClick={(e) => { e.stopPropagation(); setIsMenuOpen(false); }}
                                             >
-                                                <img src={collab.avatarUrl} alt={collab.name} className="w-6 h-6 rounded-full mr-2" />
+                                                <img src={collab.avatarUrl} alt={collab.name} loading="lazy" className="w-6 h-6 rounded-full mr-2" />
                                                 <span className="text-xs font-semibold text-black dark:text-white truncate">{collab.name}</span>
                                             </Link>
                                         ))}
@@ -117,6 +122,6 @@ const VideoCard: React.FC<VideoCardProps> = ({ video, hideChannelInfo = false })
       </div>
     </Link>
   );
-};
+});
 
 export default VideoCard;

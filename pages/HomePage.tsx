@@ -31,7 +31,7 @@ const parseDuration = (iso: string, text: string): number => {
     return 0;
 }
 
-const MAX_FEED_VIDEOS = 800; // Increased capacity
+const MAX_FEED_VIDEOS = 800; 
 
 const HomePage: React.FC = () => {
     const [feed, setFeed] = useState<Video[]>([]);
@@ -51,7 +51,7 @@ const HomePage: React.FC = () => {
     const { subscribedChannels } = useSubscription();
     const { searchHistory } = useSearchHistory();
     const { history: watchHistory } = useHistory();
-    const { preferredGenres, preferredChannels, ngKeywords, ngChannels, exportUserData, importUserData } = usePreference();
+    const { ngKeywords, ngChannels, exportUserData, importUserData } = usePreference();
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     // Update feed length ref whenever feed changes
@@ -63,9 +63,8 @@ const HomePage: React.FC = () => {
         const hasSubscriptions = subscribedChannels.length > 1;
         const hasSearchHistory = searchHistory.length > 0;
         const hasWatchHistory = watchHistory.length > 0;
-        const hasPreferences = preferredGenres.length > 0;
-        return !(hasSubscriptions || hasSearchHistory || hasWatchHistory || hasPreferences);
-    }, [subscribedChannels, searchHistory, watchHistory, preferredGenres]);
+        return !(hasSubscriptions || hasSearchHistory || hasWatchHistory);
+    }, [subscribedChannels, searchHistory, watchHistory]);
 
 
     const loadRecommendations = useCallback(async (pageNum: number) => {
@@ -86,7 +85,7 @@ const HomePage: React.FC = () => {
         try {
             const rawVideos = await getXraiRecommendations({
                 searchHistory, watchHistory, subscribedChannels,
-                preferredGenres, preferredChannels, ngKeywords, ngChannels,
+                ngKeywords, ngChannels,
                 page: pageNum
             });
             
@@ -138,7 +137,7 @@ const HomePage: React.FC = () => {
             setIsLoading(false);
             setIsFetchingMore(false);
         }
-    }, [subscribedChannels, searchHistory, watchHistory, preferredGenres, preferredChannels, ngKeywords, ngChannels]);
+    }, [subscribedChannels, searchHistory, watchHistory, ngKeywords, ngChannels]);
 
     useEffect(() => {
         setPage(1);
@@ -214,22 +213,7 @@ const HomePage: React.FC = () => {
     }
 
     return (
-        <div className="pb-10">
-             <div className="sticky top-14 bg-yt-white/95 dark:bg-yt-black/95 backdrop-blur-md z-20 pb-2 pt-2 mb-4 -mx-4 px-4 border-b border-yt-spec-light-10 dark:border-yt-spec-10">
-                <div className="flex items-center gap-3 overflow-x-auto no-scrollbar">
-                     <button 
-                        className={`px-3 py-1.5 rounded-lg text-sm font-bold whitespace-nowrap transition-all bg-black text-white dark:bg-white dark:text-black`}
-                     >
-                        すべて
-                     </button>
-                     {preferredGenres.map(g => (
-                         <button key={g} className="px-3 py-1.5 bg-yt-light dark:bg-yt-spec-10 rounded-lg text-sm font-medium whitespace-nowrap hover:bg-gray-200 dark:hover:bg-yt-spec-20">
-                             {g}
-                         </button>
-                     ))}
-                </div>
-            </div>
-
+        <div className="pb-10 pt-4">
             {error && <div className="text-red-500 text-center mb-4">{error}</div>}
             
             {(shortsFeed.length > 0 || isLoading) && (

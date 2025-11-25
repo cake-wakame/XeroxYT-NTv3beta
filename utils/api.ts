@@ -227,18 +227,8 @@ export async function getExternalRelatedVideos(videoId: string): Promise<Video[]
 
         const data = await response.json();
         
-        // The API might return an array of videos directly, or an object with a property containing them.
-        // Based on common patterns for this specific API:
-        let items = [];
-        if (Array.isArray(data)) {
-            items = data;
-        } else if (data.items && Array.isArray(data.items)) {
-            items = data.items;
-        } else if (data.related_videos && Array.isArray(data.related_videos)) {
-            items = data.related_videos;
-        } else if (data.videos && Array.isArray(data.videos)) {
-            items = data.videos;
-        }
+        // Handle various response structures (array, object with items, object with related_videos)
+        const items = Array.isArray(data) ? data : (data.items || data.related_videos || []);
         
         return items.map((item: any) => {
             // If item is already in our internal Video format (likely from a previous proxy transformation)

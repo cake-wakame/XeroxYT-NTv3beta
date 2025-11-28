@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import ShortsPlayer from '../components/ShortsPlayer';
@@ -142,21 +141,7 @@ const ShortsPage: React.FC = () => {
 
         handleDataFetchAndSync();
     }, [videoId, context]); // This single effect now controls all data and view state based on URL
-
-
-    // --- Play/Pause Control ---
-    useEffect(() => {
-        const currentVideo = videos[currentIndex];
-        if (!currentVideo) return;
-
-        iframeRefs.current.forEach((iframe, id) => {
-            const command = id === currentVideo.id ? 'playVideo' : 'pauseVideo';
-            sendCommand(iframe, command);
-        });
-
-    }, [currentIndex, videos]);
     
-
     const fetchMoreShorts = useCallback(async () => {
         if (isFetchingMore || (context?.type === 'channel')) return;
         setIsFetchingMore(true);
@@ -208,12 +193,50 @@ const ShortsPage: React.FC = () => {
     
     // Event Handlers
     const handleNext = useCallback(() => {
-        setCurrentIndex(prev => Math.min(prev + 1, videos.length - 1));
-    }, [videos.length]);
+        setCurrentIndex(prevIndex => {
+            const newIndex = Math.min(prevIndex + 1, videos.length - 1);
+            if (newIndex === prevIndex) return prevIndex;
+
+            const prevVideo = videos[prevIndex];
+            if (prevVideo) {
+                const prevIframe = iframeRefs.current.get(prevVideo.id);
+                sendCommand(prevIframe || null, 'pauseVideo');
+            }
+
+            const nextVideo = videos[newIndex];
+            if (nextVideo) {
+                setTimeout(() => {
+                    const nextIframe = iframeRefs.current.get(nextVideo.id);
+                    sendCommand(nextIframe || null, 'playVideo');
+                }, 50); 
+            }
+
+            return newIndex;
+        });
+    }, [videos]);
 
     const handlePrev = useCallback(() => {
-        setCurrentIndex(prev => Math.max(prev - 1, 0));
-    }, []);
+        setCurrentIndex(prevIndex => {
+            const newIndex = Math.max(prevIndex - 1, 0);
+            if (newIndex === prevIndex) return prevIndex;
+
+            const prevVideo = videos[prevIndex];
+            if (prevVideo) {
+                const prevIframe = iframeRefs.current.get(prevVideo.id);
+                sendCommand(prevIframe || null, 'pauseVideo');
+            }
+
+            const nextVideo = videos[newIndex];
+            if (nextVideo) {
+                setTimeout(() => {
+                    const nextIframe = iframeRefs.current.get(nextVideo.id);
+                    sendCommand(nextIframe || null, 'playVideo');
+                }, 50);
+            }
+
+            return newIndex;
+        });
+    }, [videos]);
     
     useEffect(() => {
         const handleWheel = (e: WheelEvent) => {
@@ -354,7 +377,7 @@ const ShortsPage: React.FC = () => {
                                  <div className="space-y-2">
                                      {comments.map((comment, idx) => ( <div key={idx} className="bg-black/5 dark:bg-white/5 rounded-lg p-2 backdrop-blur-sm"><CommentComponent comment={comment} /></div> ))}
                                  </div>
-                             ) : <div className="text-center text-yt-light-gray py-10">コメントはありません</div> }
+                             ) : <div className="text-center text-yt-light-gray py-10">コメントはありません。</div> }
                          </div>
                     </div>
                 )}

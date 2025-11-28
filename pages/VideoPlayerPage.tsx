@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import * as ReactRouterDOM from 'react-router-dom';
 import { getVideoDetails, getPlayerConfig, getComments, getVideosByIds, getExternalRelatedVideos } from '../utils/api';
@@ -106,8 +105,9 @@ const VideoPlayerPage: React.FC = () => {
                 .then(details => {
                     if (isMounted) {
                         setVideoDetails(details);
+                        // Request: No XRAI, just 20 items whatever they are.
                         if (details.relatedVideos && details.relatedVideos.length > 0) {
-                            setRelatedVideos(details.relatedVideos);
+                            setRelatedVideos(details.relatedVideos.slice(0, 20));
                         }
                         addVideoToHistory(details);
                         setIsLoading(false);
@@ -136,7 +136,12 @@ const VideoPlayerPage: React.FC = () => {
             getExternalRelatedVideos(videoId)
                 .then(externalRelated => {
                     if (isMounted && externalRelated && externalRelated.length > 0) {
-                        setRelatedVideos(externalRelated);
+                        // Request: No XRAI, just 20 items whatever they are.
+                        // Overwrite if external source is better or supplementary
+                        setRelatedVideos(prev => {
+                            if (prev.length > 0) return prev; // Keep internal related if available
+                            return externalRelated.slice(0, 20);
+                        });
                     }
                 })
                 .catch(extErr => {

@@ -27,6 +27,25 @@ const cleanTitleForSearch = (title: string): string => {
     return title.replace(/【.*?】|\[.*?\]|\(.*?\)/g, '').trim().split(' ').slice(0, 4).join(' ');
 };
 
+const parseDuration = (iso: string, text: string): number => {
+    if (iso) {
+        const matches = iso.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
+        if (matches) {
+            const h = parseInt(matches[1] || '0', 10);
+            const m = parseInt(matches[2] || '0', 10);
+            const s = parseInt(matches[3] || '0', 10);
+            return h * 3600 + m * 60 + s;
+        }
+    }
+    if (text) {
+         const parts = text.split(':').map(p => parseInt(p, 10));
+         if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
+         if (parts.length === 2) return parts[0] * 60 + parts[1];
+         if (parts.length === 1) return parts[0];
+    }
+    return 0;
+}
+
 export const getXraiRecommendations = async (sources: RecommendationSource): Promise<Video[]> => {
     const { 
         watchHistory, 
@@ -111,6 +130,61 @@ export const getXraiRecommendations = async (sources: RecommendationSource): Pro
         
         if (negativeScore > 2) return false;
 
+        return true;
+    });
+
+    return shuffleArray(candidates);
+};
+
+export const getXraiShorts = async (sources: RecommendationSource): Promise<Video[]> => {
+    const { 
+        watchHistory, 
+        subscribedChannels,
+        ngKeywords,
+        ngChannels,
+        hiddenVideos,
+        negativeKeywords
+    } = sources;
+
+    let seeds: string[] = [];
+
+    // Prioritize history for shorts to make it addictive/relevant
+    if (watchHistory.length > 0) {
+        const historySample = shuffleArray(watchHistory).slice(0, 8);
+        seeds.push(...historySample.map(v => `${cleanTitleForSearch(v.title)} #shorts`));
+    }
+    
+    if (subscribedChannels.length > 0) {
+        const subSample = shuffleArray(subscribedChannels).slice(0, 5);
+        seeds.push(...subSample.map(c => `${c.name} #shorts`));
+    }
+    
+    if (seeds.length === 0) {
+        seeds = ["Funny #shorts", "Gaming #shorts", "LifeHacks #shorts", "Pets #shorts", "Trending #shorts"];
+    }
+
+    const searchPromises = seeds.slice(0, 10).map(query => 
+        searchVideos(query, '1').then(res => res.videos).catch(() => [])
+    );
+
+    const nestedResults = await Promise.all(searchPromises);
+    let candidates = nestedResults.flat();
+
+    // Deduplicate and Filter
+    const hiddenVideoIdsSet = new Set(hiddenVideos.map(v => v.id));
+    const seenIds = new Set<string>(hiddenVideoIdsSet);
+    const ngChannelIds = new Set(ngChannels.map(c => c.id));
+
+    candidates = candidates.filter(v => {
+        if (seenIds.has(v.id)) return false;
+        
+        const sec = parseDuration(v.isoDuration, v.duration);
+        const isShort = (sec > 0 && sec <= 60) || v.title.toLowerCase().includes('#shorts');
+        if (!isShort) return false;
+
+        if (ngChannelIds.has(v.channelId)) return false;
+
+        seenIds.add(v.id);
         return true;
     });
 

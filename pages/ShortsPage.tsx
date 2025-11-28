@@ -27,7 +27,8 @@ const ChevronDownIcon = () => (
 );
 
 const ShortsPage: React.FC = () => {
-    const params = useParams();
+    // FIX: Explicitly type the `useParams` hook to resolve type inference issue.
+    const params = useParams<{ videoId?: string; '*': string }>();
     // Handle both /shorts/:videoId and /shorts/* patterns
     const videoId = params.videoId || params['*']; 
     
@@ -36,7 +37,7 @@ const ShortsPage: React.FC = () => {
     const context = location.state?.context as { type: 'channel' | 'home' | 'search', channelId?: string } | undefined;
 
     const [videos, setVideos] = useState<Video[]>([]);
-    const [currentIndex, setCurrentIndex] = useState(0);
+    const [currentIndex, setCurrentIndex] = useState(-1);
     const [isLoading, setIsLoading] = useState(true);
     const [isFetchingMore, setIsFetchingMore] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -56,7 +57,7 @@ const ShortsPage: React.FC = () => {
     
     const seenVideoIdsRef = useRef<Set<string>>(new Set());
 
-    const sendCommand = (iframe: HTMLIFrameElement, command: 'playVideo' | 'pauseVideo') => {
+    const sendCommand = (iframe: HTMLIFrameElement | null, command: 'playVideo' | 'pauseVideo') => {
         if (iframe && iframe.contentWindow) {
             iframe.contentWindow.postMessage(
                 JSON.stringify({ event: 'command', func: command, args: [] }),
@@ -64,136 +65,73 @@ const ShortsPage: React.FC = () => {
             );
         }
     };
-
-    // Play/Pause Control based on current index
+    
+    // --- Data Fetching and State Sync Logic ---
     useEffect(() => {
-        const currentVideo = videos[currentIndex];
-        if (!currentVideo) return;
-
-        // First, pause all other videos to prevent audio overlap
-        iframeRefs.current.forEach((iframe, id) => {
-            if (id !== currentVideo.id) {
-                sendCommand(iframe, 'pauseVideo');
-            }
-        });
-
-        // Then play the current one
-        const currentIframe = iframeRefs.current.get(currentVideo.id);
-        if (currentIframe) {
-            sendCommand(currentIframe, 'playVideo');
-        }
-    }, [currentIndex, videos]);
-
-    // URL Sync: Handle browser back/forward or external navigation
-    useEffect(() => {
-        if (videoId && videos.length > 0) {
-            const index = videos.findIndex(v => v.id === videoId);
-            if (index !== -1 && index !== currentIndex) {
-                setCurrentIndex(index);
-            }
-        }
-    }, [videoId, videos]); // Do not include currentIndex to prevent loops
-
-    const fetchMoreShorts = useCallback(async () => {
-        if (isFetchingMore) return;
-        setIsFetchingMore(true);
-        try {
-            if (!context || context.type !== 'channel') {
-                const currentSeenIds = Array.from(seenVideoIdsRef.current) as string[];
-                
-                const shorts = await getXraiShorts({ 
-                    searchHistory, watchHistory, shortsHistory, subscribedChannels, 
-                    ngKeywords, ngChannels, hiddenVideos, negativeKeywords, 
-                    page: Math.floor(videos.length / 30) + 1, 
-                    seenIds: currentSeenIds
-                });
-                
-                setVideos(prev => {
-                    const existingIds = new Set(prev.map(v => v.id));
-                    const newUniqueShorts = shorts.filter(s => !existingIds.has(s.id));
-                    newUniqueShorts.forEach(s => seenVideoIdsRef.current.add(s.id));
-                    return [...prev, ...newUniqueShorts];
-                });
-            }
-        } catch (e) {
-            console.error(e);
-        } finally {
-            setIsFetchingMore(false);
-        }
-    }, [isFetchingMore, context, videos.length, searchHistory, watchHistory, shortsHistory, subscribedChannels, ngKeywords, ngChannels, hiddenVideos, negativeKeywords]);
-
-    // Initial Data Fetch Logic
-    useEffect(() => {
-        const init = async () => {
-            // If we already have videos and the current video is in the list, don't re-init.
-            // This prevents "blue spinner" when App.tsx keeps component alive but logic re-runs.
-            if (videos.length > 0) {
-                if (videoId && videos.some(v => v.id === videoId)) {
-                    return;
+        const handleDataFetchAndSync = async () => {
+            // Case 1: Video ID exists in URL and is already in our list.
+            if (videoId && videos.length > 0) {
+                const targetIndex = videos.findIndex(v => v.id === videoId);
+                if (targetIndex !== -1) {
+                    if (currentIndex !== targetIndex) {
+                        setCurrentIndex(targetIndex);
+                    }
+                    return; // Done. No need to fetch.
                 }
             }
-
+            
+            // Case 2: We need to fetch data. This will show a loading spinner.
+            // This happens on first load, or when navigating to a video not in the current list.
             setIsLoading(true);
             setError(null);
             
             try {
-                const params = await getPlayerConfig();
-                setPlayerParams(params);
+                if (!playerParams) {
+                    const params = await getPlayerConfig();
+                    setPlayerParams(params);
+                }
+
+                let fetchedShorts: Video[] = [];
+                let initialIndex = 0;
 
                 if (context?.type === 'channel' && context.channelId) {
+                    // Channel Context: Fetch all shorts for the channel
                     const { videos: channelShorts } = await getChannelShorts(context.channelId);
-                    
-                    let initialIndex = 0;
+                    fetchedShorts = channelShorts;
                     if (videoId) {
-                        const idx = channelShorts.findIndex(v => v.id === videoId);
-                        if (idx !== -1) {
-                            initialIndex = idx;
-                        } else {
-                            try {
-                                const detail = await getVideoDetails(videoId);
-                                channelShorts.unshift(detail);
-                                initialIndex = 0;
-                            } catch (e) {
-                                console.warn("Could not fetch detail for initial video", e);
-                            }
-                        }
+                        const idx = fetchedShorts.findIndex(v => v.id === videoId);
+                        initialIndex = idx !== -1 ? idx : 0;
                     }
-                    
-                    seenVideoIdsRef.current = new Set(channelShorts.map(v => v.id));
-                    setVideos(channelShorts);
-                    setCurrentIndex(initialIndex);
-                } 
-                else {
+                } else {
+                    // Recommendation Context
                     const shorts = await getXraiShorts({ 
                         searchHistory, watchHistory, shortsHistory, subscribedChannels, 
                         ngKeywords, ngChannels, hiddenVideos, negativeKeywords, 
                         page: 1,
-                        seenIds: []
+                        seenIds: videoId ? [videoId] : []
                     });
-
-                    let initialList = shorts;
-                    if (videoId) {
-                        const existingIdx = shorts.findIndex(v => v.id === videoId);
-                        if (existingIdx !== -1) {
-                            const [target] = shorts.splice(existingIdx, 1);
-                            initialList = [target, ...shorts];
-                        } else {
-                            try {
-                                const detail = await getVideoDetails(videoId);
-                                initialList = [detail, ...shorts];
-                            } catch (e) {
-                                console.warn("Could not fetch detail for requested video", e);
-                            }
-                        }
-                    }
-                    
-                    if (initialList.length === 0) setError("ショート動画が見つかりませんでした。");
-                    else {
-                        seenVideoIdsRef.current = new Set(initialList.map(v => v.id));
-                        setVideos(initialList);
-                    }
-                    setCurrentIndex(0);
+                    fetchedShorts = shorts;
                 }
+
+                // If a specific videoId is requested (and not found in initial fetch), get its details and prepend it.
+                if (videoId && !fetchedShorts.some(v => v.id === videoId)) {
+                    try {
+                        const detail = await getVideoDetails(videoId);
+                        fetchedShorts.unshift(detail);
+                        initialIndex = 0;
+                    } catch (e) {
+                        console.warn("Could not fetch details for requested video, may not exist.", e);
+                    }
+                }
+                
+                if (fetchedShorts.length === 0 && !videoId) {
+                    setError("ショート動画が見つかりませんでした。");
+                }
+                
+                seenVideoIdsRef.current = new Set(fetchedShorts.map(v => v.id));
+                setVideos(fetchedShorts);
+                setCurrentIndex(initialIndex >= 0 ? initialIndex : 0);
+
             } catch (err: any) {
                 setError(err.message || 'ショート動画の読み込みに失敗しました。');
                 console.error(err);
@@ -202,73 +140,103 @@ const ShortsPage: React.FC = () => {
             }
         };
 
-        // Only run init if we strictly need to (empty list or new context)
-        if (videos.length === 0) {
-            init();
-        }
-    }, [videoId, context]); // Keep dependency minimal to avoid loops
+        handleDataFetchAndSync();
+    }, [videoId, context]); // This single effect now controls all data and view state based on URL
 
-    // --- Pre-fetching Logic ---
+
+    // --- Play/Pause Control ---
     useEffect(() => {
-        if (videos.length > 0 && context?.type !== 'channel') {
-            const remainingVideos = videos.length - 1 - currentIndex;
-            // Buffer: 15 items
-            if (remainingVideos < 15 && !isFetchingMore && !isLoading) {
-                fetchMoreShorts();
-            }
-        }
-    }, [currentIndex, videos.length, isFetchingMore, isLoading, context, fetchMoreShorts]);
+        const currentVideo = videos[currentIndex];
+        if (!currentVideo) return;
 
-    // Update URL on Swipe/Navigation
-    useEffect(() => {
-        if (videos[currentIndex] && videos[currentIndex].id !== videoId) {
-            navigate(`/shorts/${videos[currentIndex].id}`, { replace: true, state: location.state });
-        }
-    }, [currentIndex, videos, navigate, videoId, location.state]);
-
-    const handleNext = useCallback(() => {
-        setCurrentIndex(prev => {
-            if (prev < videos.length - 1) {
-                return prev + 1;
-            }
-            return prev;
+        iframeRefs.current.forEach((iframe, id) => {
+            const command = id === currentVideo.id ? 'playVideo' : 'pauseVideo';
+            sendCommand(iframe, command);
         });
-    }, [videos.length]);
 
-    const handlePrev = useCallback(() => {
-        setCurrentIndex(prev => {
-            if (prev > 0) {
-                return prev - 1;
+    }, [currentIndex, videos]);
+    
+
+    const fetchMoreShorts = useCallback(async () => {
+        if (isFetchingMore || (context?.type === 'channel')) return;
+        setIsFetchingMore(true);
+        try {
+            // FIX: Explicitly type `currentSeenIds` to avoid type inference issues.
+            const currentSeenIds: string[] = Array.from(seenVideoIdsRef.current);
+            
+            const shorts = await getXraiShorts({ 
+                searchHistory, watchHistory, shortsHistory, subscribedChannels, 
+                ngKeywords, ngChannels, hiddenVideos, negativeKeywords, 
+                page: Math.floor(videos.length / 30) + 1, 
+                seenIds: currentSeenIds
+            });
+            
+            const newUniqueShorts = shorts.filter(s => !seenVideoIdsRef.current.has(s.id));
+            if (newUniqueShorts.length > 0) {
+                 newUniqueShorts.forEach(s => seenVideoIdsRef.current.add(s.id));
+                 setVideos(prev => [...prev, ...newUniqueShorts]);
             }
-            return prev;
-        });
-    }, []);
-    
-    // Reset comments when index changes
-    useEffect(() => {
-        setShowComments(false);
-        setComments([]);
-    }, [currentIndex]);
-    
-    const getParamsForVideo = (index: number, videoId: string) => {
-        if (!playerParams) return '';
-        let params = playerParams.replace(/&?autoplay=[01]/g, "") + "&playsinline=1&autoplay=0&enablejsapi=1";
-        params += `&loop=1&playlist=${videoId}`;
-        return params;
-    };
+        } catch (e) { console.error(e); } 
+        finally { setIsFetchingMore(false); }
+    }, [isFetchingMore, context, videos.length, searchHistory, watchHistory, shortsHistory, subscribedChannels, ngKeywords, ngChannels, hiddenVideos, negativeKeywords]);
 
+    // --- Pre-fetching & URL Update Logic ---
+    useEffect(() => {
+        const currentVideo = videos[currentIndex];
+        if (currentVideo && currentVideo.id !== videoId) {
+            navigate(`/shorts/${currentVideo.id}`, { replace: true, state: location.state });
+        }
+        
+        // Pre-fetch more videos if buffer is low
+        const remainingVideos = videos.length - 1 - currentIndex;
+        if (remainingVideos < 15 && !isFetchingMore && !isLoading && context?.type !== 'channel') {
+            fetchMoreShorts();
+        }
+    }, [currentIndex, videos, videoId, navigate, location.state, isFetchingMore, isLoading, context, fetchMoreShorts]);
+    
     // History saving
     useEffect(() => {
         const video = videos[currentIndex];
         if (!video) return;
         const durationSec = parseDuration(video.isoDuration, video.duration);
-        const timeoutMs = durationSec > 0 ? (durationSec * 1000) / 2 : 10000;
+        const timeoutMs = durationSec > 0 ? (durationSec * 1000) / 2 : 10000; // Save after 50% watched or 10s
         const historyTimer = setTimeout(() => {
             addShortToHistory(video);
         }, timeoutMs);
         return () => clearTimeout(historyTimer);
     }, [currentIndex, videos, addShortToHistory]);
     
+    // Event Handlers
+    const handleNext = useCallback(() => {
+        setCurrentIndex(prev => Math.min(prev + 1, videos.length - 1));
+    }, [videos.length]);
+
+    const handlePrev = useCallback(() => {
+        setCurrentIndex(prev => Math.max(prev - 1, 0));
+    }, []);
+    
+    useEffect(() => {
+        const handleWheel = (e: WheelEvent) => {
+            e.preventDefault();
+            if (wheelTimeoutRef.current) return;
+            if (e.deltaY > 5) handleNext();
+            else if (e.deltaY < -5) handlePrev();
+            wheelTimeoutRef.current = setTimeout(() => { wheelTimeoutRef.current = null; }, 200);
+        };
+        const container = document.querySelector('.shorts-container');
+        if(container) container.addEventListener('wheel', handleWheel, { passive: false });
+        return () => { 
+            if(container) container.removeEventListener('wheel', handleWheel);
+            if(wheelTimeoutRef.current) clearTimeout(wheelTimeoutRef.current);
+        };
+    }, [handleNext, handlePrev]);
+
+    // Reset comments when index changes
+    useEffect(() => {
+        setShowComments(false);
+        setComments([]);
+    }, [currentIndex]);
+
     const handleToggleComments = async () => {
         const willBeOpen = !showComments;
         setShowComments(willBeOpen);
@@ -296,22 +264,13 @@ const ShortsPage: React.FC = () => {
         handleNext();
     };
 
-    useEffect(() => {
-        const handleWheel = (e: WheelEvent) => {
-            e.preventDefault();
-            if (wheelTimeoutRef.current) return;
-            if (e.deltaY > 5) handleNext();
-            else if (e.deltaY < -5) handlePrev();
-            wheelTimeoutRef.current = setTimeout(() => { wheelTimeoutRef.current = null; }, 200);
-        };
-        const container = document.querySelector('.shorts-container');
-        if(container) container.addEventListener('wheel', handleWheel, { passive: false });
-        return () => { 
-            if(container) container.removeEventListener('wheel', handleWheel);
-            if(wheelTimeoutRef.current) clearTimeout(wheelTimeoutRef.current);
-        };
-    }, [handleNext, handlePrev]);
-
+    const getParamsForVideo = (videoId: string) => {
+        if (!playerParams) return '';
+        let params = playerParams.replace(/&?autoplay=[01]/g, "") + "&playsinline=1&autoplay=0&enablejsapi=1";
+        params += `&loop=1&playlist=${videoId}`;
+        return params;
+    };
+    
     if (isLoading && videos.length === 0) return <div className="flex justify-center items-center h-[calc(100vh-64px)]"><div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-yt-blue"></div></div>;
     if (error) return <div className="text-center text-red-500 bg-red-100 dark:bg-red-900/50 p-4 rounded-lg m-4">{error}</div>;
     if (videos.length === 0 || !playerParams) return <div className="text-center p-8">No shorts found.</div>;
@@ -328,12 +287,10 @@ const ShortsPage: React.FC = () => {
             </button>
 
             <div className="relative flex items-center justify-center gap-4 h-full w-full max-w-7xl mx-auto px-2 sm:px-4">
-                {/* Main Player Container - Renders list but hides non-active */}
                 <div className="relative h-[85vh] max-h-[900px] aspect-[9/16] rounded-2xl shadow-2xl overflow-hidden bg-black flex-shrink-0 z-10">
                      {videos.map((video, index) => {
-                         // Unmount if too far away to save memory
-                         // Keep Current, Next 10. Unmount previous videos immediately to stop audio.
-                         if (index < currentIndex || index > currentIndex + 10) return null;
+                         // Render previous, current, and next 10 videos for pre-loading
+                         if (index < currentIndex -1 || index > currentIndex + 10) return null;
                          
                          const isActive = index === currentIndex;
                          
@@ -342,8 +299,9 @@ const ShortsPage: React.FC = () => {
                                 key={video.id} 
                                 className="absolute inset-0 w-full h-full"
                                 style={{ 
-                                    visibility: isActive ? 'visible' : 'hidden',
-                                    zIndex: isActive ? 2 : 1, // Active on top
+                                    transform: `translateY(${(index - currentIndex) * 100}%)`,
+                                    transition: 'transform 0.4s ease-out',
+                                    visibility: isActive ? 'visible' : 'hidden', // Hide non-active for performance
                                 }}
                              >
                                  <ShortsPlayer 
@@ -353,14 +311,10 @@ const ShortsPage: React.FC = () => {
                                     }}
                                     id={video.id}
                                     video={video} 
-                                    playerParams={getParamsForVideo(index, video.id)} 
+                                    playerParams={getParamsForVideo(video.id)} 
                                     onLoad={(e) => {
-                                        const iframe = e.currentTarget;
-                                        if (index === currentIndex) {
-                                            sendCommand(iframe, 'playVideo');
-                                        } else {
-                                            // Explicitly pause if preloading in background
-                                            sendCommand(iframe, 'pauseVideo');
+                                        if (index !== currentIndex) {
+                                            sendCommand(e.currentTarget, 'pauseVideo');
                                         }
                                     }}
                                  />

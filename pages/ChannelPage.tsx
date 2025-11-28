@@ -227,14 +227,6 @@ const ChannelPage: React.FC = () => {
                             <Link to={`/watch/${homeData.topVideo.videoId}`}>
                                 <h3 className="text-base md:text-xl font-bold mb-1 md:mb-2 line-clamp-2 leading-snug">{homeData.topVideo.title}</h3>
                             </Link>
-                            
-                            <div className="flex items-center mb-2">
-                                {channelDetails && (
-                                    <Link to={`/channel/${channelDetails.id}`} className="text-black dark:text-white font-semibold hover:text-yt-icon text-sm md:text-base">
-                                        {channelDetails.name}
-                                    </Link>
-                                )}
-                            </div>
 
                             <div className="flex items-center text-xs md:text-sm text-yt-light-gray font-medium mb-3">
                                 <span>{homeData.topVideo.viewCount}</span>
@@ -242,8 +234,8 @@ const ChannelPage: React.FC = () => {
                                 <span>{homeData.topVideo.published}</span>
                             </div>
                             
-                            <p className="text-sm text-yt-light-gray line-clamp-3 md:line-clamp-4 whitespace-pre-line hidden md:block">
-                                {homeData.topVideo.description?.replace(/<br\s*\/?>/gi, '\n')}
+                            <p className="text-sm text-yt-light-gray line-clamp-2">
+                                {homeData.topVideo.description?.replace(/<br\s*\/?>/gi, ' ')}
                             </p>
                         </div>
                     </div>

@@ -14,6 +14,8 @@ import HistoryPage from './pages/HistoryPage';
 import VideoPlayerPage from './pages/VideoPlayerPage';
 import { useTheme } from './hooks/useTheme';
 import { AiProvider } from './contexts/AiContext';
+import HistoryDeletionModal from './components/HistoryDeletionModal';
+import SearchHistoryDeletionModal from './components/SearchHistoryDeletionModal';
 
 const { Routes, Route, useLocation } = ReactRouterDOM;
 
@@ -24,6 +26,8 @@ const App: React.FC = () => {
   const isShortsPage = location.pathname === '/shorts';
 
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(!isPlayerPage);
+  const [isHistoryDeletionModalOpen, setIsHistoryDeletionModalOpen] = useState(false);
+  const [isSearchHistoryDeletionModalOpen, setIsSearchHistoryDeletionModalOpen] = useState(false);
 
   useEffect(() => {
     if (isPlayerPage) {
@@ -36,6 +40,11 @@ const App: React.FC = () => {
   const toggleSidebar = useCallback(() => {
     setIsSidebarOpen(prev => !prev);
   }, []);
+  
+  const openHistoryDeletionModal = useCallback(() => setIsHistoryDeletionModalOpen(true), []);
+  const openSearchHistoryDeletionModal = useCallback(() => setIsSearchHistoryDeletionModalOpen(true), []);
+  const closeHistoryDeletionModal = useCallback(() => setIsHistoryDeletionModalOpen(false), []);
+  const closeSearchHistoryDeletionModal = useCallback(() => setIsSearchHistoryDeletionModalOpen(false), []);
 
   const getMargin = () => {
     if (isShortsPage) return ''; 
@@ -60,6 +69,8 @@ const App: React.FC = () => {
         <div className={`min-h-screen ${appBgClass}`}>
         <Header 
             toggleSidebar={toggleSidebar} 
+            openHistoryDeletionModal={openHistoryDeletionModal}
+            openSearchHistoryDeletionModal={openSearchHistoryDeletionModal}
         />
         <div className="flex">
             {shouldShowSidebar() && <Sidebar isOpen={isSidebarOpen} />}
@@ -79,6 +90,18 @@ const App: React.FC = () => {
             </main>
         </div>
         <BottomNavigation />
+        {isHistoryDeletionModalOpen && (
+            <HistoryDeletionModal 
+            isOpen={isHistoryDeletionModalOpen} 
+            onClose={closeHistoryDeletionModal} 
+            />
+        )}
+        {isSearchHistoryDeletionModalOpen && (
+            <SearchHistoryDeletionModal 
+            isOpen={isSearchHistoryDeletionModalOpen} 
+            onClose={closeSearchHistoryDeletionModal} 
+            />
+        )}
         </div>
     </AiProvider>
   );

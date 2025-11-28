@@ -4,21 +4,19 @@ import { MenuIcon, YouTubeLogo, SearchIcon, SettingsIcon, SaveIcon, DownloadIcon
 import { useSearchHistory } from '../contexts/SearchHistoryContext';
 import { usePreference } from '../contexts/PreferenceContext';
 import { useHistory } from '../contexts/HistoryContext';
-import HistoryDeletionModal from './HistoryDeletionModal';
-import SearchHistoryDeletionModal from './SearchHistoryDeletionModal';
 import { useTheme, type Theme } from '../hooks/useTheme';
 
 const { useNavigate, Link } = ReactRouterDOM;
 
 interface HeaderProps {
   toggleSidebar: () => void;
+  openHistoryDeletionModal: () => void;
+  openSearchHistoryDeletionModal: () => void;
 }
 
-const Header: React.FC<HeaderProps> = ({ toggleSidebar }) => {
+const Header: React.FC<HeaderProps> = ({ toggleSidebar, openHistoryDeletionModal, openSearchHistoryDeletionModal }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [isHistoryDeletionModalOpen, setIsHistoryDeletionModalOpen] = useState(false);
-  const [isSearchHistoryDeletionModalOpen, setIsSearchHistoryDeletionModalOpen] = useState(false);
   const [useProxy, setUseProxy] = useState(localStorage.getItem('useChannelHomeProxy') !== 'false');
 
   const { theme, setTheme } = useTheme();
@@ -194,7 +192,7 @@ const Header: React.FC<HeaderProps> = ({ toggleSidebar }) => {
                         全ての視聴履歴を削除
                     </button>
                     <button 
-                        onClick={() => { setIsHistoryDeletionModalOpen(true); setIsSettingsOpen(false); }}
+                        onClick={() => { openHistoryDeletionModal(); setIsSettingsOpen(false); }}
                         className="w-full text-left flex items-center px-4 py-2 hover:bg-yt-spec-light-10 dark:hover:bg-yt-spec-10 text-sm text-black dark:text-white gap-2"
                     >
                         <HistoryIcon />
@@ -212,7 +210,7 @@ const Header: React.FC<HeaderProps> = ({ toggleSidebar }) => {
                         全ての検索履歴を削除
                     </button>
                     <button 
-                        onClick={() => { setIsSearchHistoryDeletionModalOpen(true); setIsSettingsOpen(false); }}
+                        onClick={() => { openSearchHistoryDeletionModal(); setIsSettingsOpen(false); }}
                         className="w-full text-left flex items-center px-4 py-2 hover:bg-yt-spec-light-10 dark:hover:bg-yt-spec-10 text-sm text-black dark:text-white gap-2"
                     >
                         <SearchIcon />
@@ -253,18 +251,6 @@ const Header: React.FC<HeaderProps> = ({ toggleSidebar }) => {
             </div>
         </div>
       </div>
-      {isHistoryDeletionModalOpen && (
-        <HistoryDeletionModal 
-          isOpen={isHistoryDeletionModalOpen} 
-          onClose={() => setIsHistoryDeletionModalOpen(false)} 
-        />
-      )}
-      {isSearchHistoryDeletionModalOpen && (
-        <SearchHistoryDeletionModal 
-          isOpen={isSearchHistoryDeletionModalOpen} 
-          onClose={() => setIsSearchHistoryDeletionModalOpen(false)} 
-        />
-      )}
     </header>
   );
 };

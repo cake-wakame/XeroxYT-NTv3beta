@@ -14,9 +14,11 @@ const BottomNavigation: React.FC = () => {
       isActive ? 'text-black dark:text-white' : 'text-black dark:text-white'
     }`;
   
-  const bgClass = theme.includes('glass')
-    ? 'bg-yt-white/20 dark:bg-black/20 backdrop-blur-xl'
-    : 'bg-yt-white dark:bg-yt-black';
+  let bgClass = 'bg-yt-white dark:bg-yt-black';
+  if (theme === 'light-glass') {
+    bgClass = 'bg-white/30 backdrop-blur-xl border-t border-white/20';
+  }
+
 
   return (
     <div className={`fixed bottom-0 left-0 right-0 h-12 ${bgClass} border-t border-yt-spec-light-20 dark:border-yt-spec-20 flex items-center justify-around z-50 md:hidden transition-colors duration-300`}>

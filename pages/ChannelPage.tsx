@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import * as ReactRouterDOM from 'react-router-dom';
 import { getChannelDetails, getChannelVideos, getChannelHome, mapHomeVideoToVideo, getPlayerConfig } from '../utils/api';
@@ -127,7 +126,6 @@ const ChannelPage: React.FC = () => {
         }
     }, [activeTab, videosPageToken, isFetchingMore, fetchTabData]);
 
-    // Use shared hook
     const lastElementRef = useInfiniteScroll(handleLoadMore, !!videosPageToken, isFetchingMore || isLoading);
 
     if (isLoading) return <div className="text-center p-8">チャンネル情報を読み込み中...</div>;
@@ -159,8 +157,11 @@ const ChannelPage: React.FC = () => {
             }
         } else {
             if (window.confirm('このチャンネルをブロックしますか？\n検索結果やおすすめに表示されなくなります。')) {
-                addNgChannel(channelDetails.id);
-                // Optionally unsubscribe if blocked
+                addNgChannel({
+                    id: channelDetails.id,
+                    name: channelDetails.name,
+                    avatarUrl: channelDetails.avatarUrl || ''
+                });
                 if (subscribed) unsubscribe(channelDetails.id);
             }
         }
@@ -189,7 +190,6 @@ const ChannelPage: React.FC = () => {
         
         return (
             <div className="flex flex-col gap-6 pb-10">
-                {/* Featured Video */}
                 {homeData.topVideo && (
                     <div className="flex flex-col md:flex-row gap-4 md:gap-6 border-b border-yt-spec-light-20 dark:border-yt-spec-20 pb-6">
                          <div className="w-full md:w-[360px] lg:w-[420px] aspect-video rounded-xl overflow-hidden flex-shrink-0 bg-yt-black">
@@ -213,7 +213,6 @@ const ChannelPage: React.FC = () => {
                                 <h3 className="text-base md:text-lg font-bold mb-1 md:mb-2 line-clamp-2">{homeData.topVideo.title}</h3>
                             </Link>
                             
-                            {/* Channel Name */}
                             <div className="flex items-center mb-2">
                                 {channelDetails && (
                                     <Link to={`/channel/${channelDetails.id}`} className="text-black dark:text-white font-semibold hover:text-yt-icon text-sm">
@@ -235,7 +234,6 @@ const ChannelPage: React.FC = () => {
                     </div>
                 )}
 
-                {/* Playlists (Shelves) */}
                 {homeData.playlists
                     .filter(playlist => 
                         playlist.playlistId && 
@@ -265,14 +263,12 @@ const ChannelPage: React.FC = () => {
 
     return (
         <div className="max-w-[1750px] mx-auto px-4 sm:px-6">
-            {/* Banner */}
             {channelDetails.bannerUrl && (
                 <div className="w-full aspect-[6/1] md:aspect-[6/1.2] lg:aspect-[6.2/1] rounded-xl overflow-hidden mb-6">
                     <img src={channelDetails.bannerUrl} alt="Channel Banner" className="w-full h-full object-cover" />
                 </div>
             )}
 
-            {/* Channel Header */}
             <div className="flex flex-col md:flex-row items-center md:items-start gap-4 md:gap-6 mb-4 md:mb-6">
                 <div className="flex-shrink-0">
                     <img src={channelDetails.avatarUrl} alt={channelDetails.name} className="w-16 h-16 md:w-32 md:h-32 rounded-full object-cover" />
@@ -308,13 +304,11 @@ const ChannelPage: React.FC = () => {
                 </div>
             </div>
 
-            {/* Tabs */}
             <div className="flex border-b border-yt-spec-light-20 dark:border-yt-spec-20 mb-6 overflow-x-auto no-scrollbar">
                 <TabButton tab="home" label="ホーム" />
                 <TabButton tab="videos" label="動画" />
             </div>
 
-            {/* Content */}
             {activeTab === 'home' && renderHomeTab()}
             
             {activeTab === 'videos' && (

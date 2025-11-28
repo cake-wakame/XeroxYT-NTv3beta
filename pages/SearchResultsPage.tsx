@@ -11,7 +11,6 @@ import { usePreference } from '../contexts/PreferenceContext';
 
 const { useSearchParams } = ReactRouterDOM;
 
-// Helper to parse duration string to seconds (Same as Home)
 const parseDuration = (iso: string, text: string): number => {
     if (iso) {
         const matches = iso.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
@@ -47,25 +46,22 @@ const SearchResultsPage: React.FC = () => {
     const [nextPageToken, setNextPageToken] = useState<string | undefined>(undefined);
     const [isFetchingMore, setIsFetchingMore] = useState(false);
 
-    // Filter function
     const isContentAllowed = useCallback((item: Video | Channel | ApiPlaylist) => {
         const lowerQuery = (text: string) => text.toLowerCase();
         
-        // Check blocked channel IDs
         let channelId = '';
-        if ('channelId' in item) channelId = item.channelId; // Video
-        else if ('id' in item && 'subscriberCount' in item) channelId = item.id; // Channel (id is channelId)
+        if ('channelId' in item) channelId = item.channelId;
+        else if ('id' in item && 'subscriberCount' in item) channelId = item.id;
         
-        if (channelId && ngChannels.includes(channelId)) {
+        if (channelId && ngChannels.some(c => c.id === channelId)) {
             return false;
         }
 
-        // Check NG Keywords in Title, Description, Channel Name
         let textToScan = '';
         if ('title' in item) textToScan += item.title + ' ';
-        if ('descriptionSnippet' in item) textToScan += item.descriptionSnippet + ' ';
-        if ('channelName' in item) textToScan += item.channelName + ' ';
-        if ('name' in item) textToScan += item.name + ' '; // Channel name
+        if ('descriptionSnippet' in item) textToScan += (item.descriptionSnippet || '') + ' ';
+        if ('channelName' in item) textToScan += (item.channelName || '') + ' ';
+        if ('name' in item) textToScan += (item.name || '') + ' ';
         
         const scannedText = lowerQuery(textToScan);
         if (ngKeywords.some(keyword => scannedText.includes(lowerQuery(keyword)))) {
@@ -91,25 +87,16 @@ const SearchResultsPage: React.FC = () => {
             const separatedShorts: Video[] = [];
             const separatedVideos: Video[] = [];
 
-            // Separate shorts from regular videos array
             results.videos.forEach(v => {
                  const sec = parseDuration(v.isoDuration, v.duration);
-                 // Consider Short if <= 60s OR contains #shorts.
                  const isShort = (sec > 0 && sec <= 60) || v.title.toLowerCase().includes('#shorts');
-                 
-                 if (isShort) {
-                     separatedShorts.push(v);
-                 } else {
-                     separatedVideos.push(v);
-                 }
+                 if (isShort) separatedShorts.push(v);
+                 else separatedVideos.push(v);
             });
 
-            // Apply Filtering
             const filteredVideos = separatedVideos.filter(isContentAllowed);
-            // Merge API separated shorts with manually separated shorts
             const allShorts = [...results.shorts, ...separatedShorts];
             const filteredShorts = allShorts.filter(isContentAllowed);
-            
             const filteredChannels = results.channels.filter(isContentAllowed);
             const filteredPlaylists = results.playlists.filter(isContentAllowed);
 
@@ -120,13 +107,11 @@ const SearchResultsPage: React.FC = () => {
                 setPlaylists(filteredPlaylists);
             } else {
                 setVideos(prev => [...prev, ...filteredVideos]);
-                // Append new shorts to existing shelf (optional, but good for consistency)
                 setShorts(prev => [...prev, ...filteredShorts]);
             }
             setNextPageToken(results.nextPageToken);
         } catch (err: any) {
             setError(err.message);
-            console.error(err);
         } finally {
             setIsLoading(false);
             setIsFetchingMore(false);
@@ -134,18 +119,13 @@ const SearchResultsPage: React.FC = () => {
     }, [isContentAllowed]);
 
     useEffect(() => {
-        // Reset state on new query
         setVideos([]);
         setShorts([]);
         setChannels([]);
         setPlaylists([]);
         setNextPageToken(undefined);
-        
-        if (query) {
-            performSearch(query, '1');
-        } else {
-            setIsLoading(false);
-        }
+        if (query) performSearch(query, '1');
+        else setIsLoading(false);
     }, [query, performSearch]);
 
     const handleLoadMore = () => {
@@ -159,7 +139,6 @@ const SearchResultsPage: React.FC = () => {
     if (isLoading) {
         return (
              <div className="flex flex-col space-y-6 max-w-6xl mx-auto p-4">
-                {/* Skeleton */}
                 {Array.from({ length: 5 }).map((_, index) => (
                    <div key={index} className="flex flex-col sm:flex-row gap-4 animate-pulse">
                         <div className="w-full sm:w-[360px] aspect-video bg-yt-light dark:bg-yt-dark-gray rounded-xl"></div>
@@ -184,7 +163,6 @@ const SearchResultsPage: React.FC = () => {
 
     return (
         <div className="max-w-6xl mx-auto px-2 sm:px-4 py-4">
-            {/* Channels Section */}
             {channels.length > 0 && (
                 <div className="mb-6 space-y-4">
                     {channels.map(channel => (
@@ -193,14 +171,12 @@ const SearchResultsPage: React.FC = () => {
                 </div>
             )}
 
-            {/* Shorts Section */}
             {shorts.length > 0 && (
                 <div className="mb-8 border-b border-yt-spec-light-20 dark:border-yt-spec-20 pb-8">
                     <ShortsShelf shorts={shorts} isLoading={false} />
                 </div>
             )}
             
-            {/* Playlists Section */}
             {playlists.length > 0 && (
                 <div className="mb-6">
                     <h2 className="text-xl font-bold mb-4">プレイリスト</h2>
@@ -213,15 +189,15 @@ const SearchResultsPage: React.FC = () => {
                 </div>
             )}
 
-            {/* Videos Section */}
-            <div className="flex flex-col space-y-2">
-                <h2 className="text-xl font-bold mb-2">動画</h2>
-                {videos.map((video, index) => (
-                    <SearchVideoResultCard key={`${video.id}-${index}`} video={video} />
-                ))}
-            </div>
+            {videos.length > 0 && (
+              <div className="flex flex-col space-y-2">
+                  <h2 className="text-xl font-bold mb-2">動画</h2>
+                  {videos.map((video, index) => (
+                      <SearchVideoResultCard key={`${video.id}-${index}`} video={video} />
+                  ))}
+              </div>
+            )}
 
-            {/* Infinite Scroll Sentinel */}
             {nextPageToken && (
                 <div ref={lastElementRef} className="flex justify-center mt-8 mb-10 h-10">
                     {isFetchingMore && <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-yt-blue"></div>}

@@ -12,6 +12,7 @@ import ShortsPage from './pages/ShortsPage';
 import SubscriptionsPage from './pages/SubscriptionsPage';
 import HistoryPage from './pages/HistoryPage';
 import VideoPlayerPage from './pages/VideoPlayerPage';
+import ManagementPage from './pages/ManagementPage'; // Import the new page
 import { useTheme } from './hooks/useTheme';
 import { AiProvider } from './contexts/AiContext';
 import HistoryDeletionModal from './components/HistoryDeletionModal';
@@ -62,7 +63,8 @@ const App: React.FC = () => {
     return true;
   };
 
-  const appBgClass = theme.includes('glass') ? 'bg-transparent' : 'bg-yt-white dark:bg-yt-black';
+  const isTransparentTheme = theme.includes('glass');
+  const appBgClass = isTransparentTheme ? 'bg-transparent' : 'bg-yt-white dark:bg-yt-black';
 
   return (
     <AiProvider>
@@ -85,6 +87,7 @@ const App: React.FC = () => {
                 <Route path="/shorts" element={<ShortsPage />} />
                 <Route path="/subscriptions" element={<SubscriptionsPage />} />
                 <Route path="/history" element={<HistoryPage />} />
+                <Route path="/management" element={<ManagementPage />} /> {/* Add new route */}
                 <Route path="*" element={<HomePage />} />
             </Routes>
             </main>

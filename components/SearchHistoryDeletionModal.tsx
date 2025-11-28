@@ -54,7 +54,7 @@ const SearchHistoryDeletionModal: React.FC<SearchHistoryDeletionModalProps> = ({
                 <div className="p-2 border-b border-yt-spec-light-20 dark:border-yt-spec-20 flex justify-between items-center bg-yt-light/50 dark:bg-yt-black/50">
                     <button 
                         onClick={handleSelectAll}
-                        className="text-sm font-semibold text-yt-blue px-4 py-2 rounded hover:bg-yt-blue/10"
+                        className="text-sm font-semibold text-black dark:text-white px-4 py-2 rounded-lg hover:bg-yt-spec-light-10 dark:hover:bg-yt-spec-10"
                     >
                         {selectedTerms.size === searchHistory.length ? 'すべて選択解除' : 'すべて選択'}
                     </button>

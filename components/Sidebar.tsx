@@ -40,14 +40,16 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen }) => {
   const { subscribedChannels } = useSubscription();
   const { theme } = useTheme();
 
-  // Increased transparency for better glass effect
-  const sidebarBgClass = theme.includes('glass') 
-    ? 'bg-yt-white/20 dark:bg-black/20 backdrop-blur-2xl' 
-    : 'bg-yt-white dark:bg-yt-black';
+  let sidebarBgClass = 'bg-yt-white dark:bg-yt-black';
+  if (theme === 'light-glass') {
+    sidebarBgClass = 'bg-white/30 backdrop-blur-2xl border-r border-white/20';
+  }
 
-  const smallSidebarBgClass = theme.includes('glass')
-    ? 'bg-yt-white/20 dark:bg-black/20 backdrop-blur-2xl'
-    : 'bg-yt-white dark:bg-yt-black';
+  let smallSidebarBgClass = 'bg-yt-white dark:bg-yt-black';
+  if (theme === 'light-glass') {
+    smallSidebarBgClass = 'bg-white/30 backdrop-blur-2xl border-r border-white/20';
+  }
+
 
   if (!isOpen) {
     return (

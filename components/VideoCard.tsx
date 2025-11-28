@@ -41,8 +41,11 @@ const VideoCard: React.FC<VideoCardProps> = memo(({ video, hideChannelInfo = fal
   const handleNotInterested = (e: React.MouseEvent) => {
       e.preventDefault();
       e.stopPropagation();
-      // XRAI analysis triggered via context
-      addHiddenVideo(video.id, { title: video.title, channelName: video.channelName });
+      addHiddenVideo({
+          id: video.id,
+          title: video.title,
+          channelName: video.channelName,
+      });
       setIsSettingsMenuOpen(false);
   };
 
@@ -50,7 +53,11 @@ const VideoCard: React.FC<VideoCardProps> = memo(({ video, hideChannelInfo = fal
       e.preventDefault();
       e.stopPropagation();
       if (video.channelId) {
-          addNgChannel(video.channelId);
+          addNgChannel({
+              id: video.channelId,
+              name: video.channelName,
+              avatarUrl: video.channelAvatarUrl
+          });
       }
       setIsSettingsMenuOpen(false);
   };
@@ -168,7 +175,7 @@ const VideoCard: React.FC<VideoCardProps> = memo(({ video, hideChannelInfo = fal
         <button 
             ref={settingsTriggerRef}
             onClick={toggleSettingsMenu}
-            className="absolute top-0 right-[-8px] p-1 opacity-0 group-hover:opacity-100 transition-opacity rounded-full hover:bg-yt-spec-light-10 dark:hover:bg-yt-spec-10"
+            className="absolute top-0 right-[-8px] p-1 transition-opacity rounded-full hover:bg-yt-spec-light-10 dark:hover:bg-yt-spec-10"
         >
             <div className="transform rotate-90">
                 <MoreIconHorizontal />

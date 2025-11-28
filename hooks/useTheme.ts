@@ -1,7 +1,7 @@
 
 import React, { createContext, useState, useEffect, useContext, ReactNode, useCallback } from 'react';
 
-export type Theme = 'light' | 'dark' | 'light-glass' | 'dark-glass';
+export type Theme = 'light' | 'dark' | 'light-glass';
 
 interface ThemeContextType {
   theme: Theme;
@@ -24,14 +24,19 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
     useEffect(() => {
         try {
-            const storedTheme = localStorage.getItem('theme') as Theme | null;
-            if (storedTheme && ['light', 'dark', 'light-glass', 'dark-glass'].includes(storedTheme)) {
-                _setTheme(storedTheme);
+            const storedTheme = localStorage.getItem('theme') as Theme | 'dark-glass' | 'aurora' | null;
+            if (storedTheme) {
+                if (storedTheme === 'dark-glass' || storedTheme === 'aurora') {
+                    // Migrate away from the deleted themes to a sensible default.
+                    setTheme('light-glass');
+                } else if (['light', 'dark', 'light-glass'].includes(storedTheme)) {
+                    _setTheme(storedTheme as Theme);
+                }
             }
         } catch (e) {
             console.error("Could not read theme from localStorage", e);
         }
-    }, []);
+    }, [setTheme]);
 
     useEffect(() => {
         const root = document.documentElement;

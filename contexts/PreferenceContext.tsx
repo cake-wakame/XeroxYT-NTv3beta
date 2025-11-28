@@ -2,20 +2,33 @@ import React, { createContext, useState, useEffect, useContext, ReactNode } from
 import { extractKeywords } from '../utils/xrai';
 import type { Video } from '../types';
 
+export interface BlockedChannel {
+    id: string;
+    name: string;
+    avatarUrl: string;
+}
+
+export interface HiddenVideo {
+    id: string;
+    title: string;
+    channelName: string;
+}
+
 interface PreferenceContextType {
   ngKeywords: string[];
-  ngChannels: string[];
-  hiddenVideoIds: string[]; // Session-based or persistent hidden videos
-  negativeKeywords: Map<string, number>; // For XRAI filtering
+  ngChannels: BlockedChannel[];
+  hiddenVideos: HiddenVideo[];
+  negativeKeywords: Map<string, number>;
   
   addNgKeyword: (keyword: string) => void;
   removeNgKeyword: (keyword: string) => void;
   
-  addNgChannel: (channelId: string) => void;
+  addNgChannel: (channel: BlockedChannel) => void;
   removeNgChannel: (channelId: string) => void;
   isNgChannel: (channelId: string) => boolean;
 
-  addHiddenVideo: (videoId: string, analyzeContent?: { title: string, channelName: string }) => void;
+  addHiddenVideo: (video: HiddenVideo) => void;
+  unhideVideo: (videoId: string) => void;
   isvideoHidden: (videoId: string) => boolean;
   removeNegativeProfileForVideos: (videos: Video[]) => void;
 
@@ -26,113 +39,118 @@ interface PreferenceContextType {
 const PreferenceContext = createContext<PreferenceContextType | undefined>(undefined);
 
 export const PreferenceProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  // NG Settings
   const [ngKeywords, setNgKeywords] = useState<string[]>(() => {
     try { return JSON.parse(window.localStorage.getItem('ngKeywords') || '[]'); } catch { return []; }
   });
-  const [ngChannels, setNgChannels] = useState<string[]>(() => {
-    try { return JSON.parse(window.localStorage.getItem('ngChannels') || '[]'); } catch { return []; }
+  const [ngChannels, setNgChannels] = useState<BlockedChannel[]>(() => {
+    try { 
+        // Migration from old string[] format
+        const data = JSON.parse(window.localStorage.getItem('ngChannels') || '[]');
+        if (data.length > 0 && typeof data[0] === 'string') return []; // Invalidate old format
+        return data;
+    } catch { return []; }
   });
   
-  // Hidden Videos (Session + Persistence)
-  const [hiddenVideoIds, setHiddenVideoIds] = useState<string[]>(() => {
-    try { return JSON.parse(window.localStorage.getItem('hiddenVideoIds') || '[]'); } catch { return []; }
+  const [hiddenVideos, setHiddenVideos] = useState<HiddenVideo[]>(() => {
+    try { 
+        // Migration from old string[] format
+        const data = JSON.parse(window.localStorage.getItem('hiddenVideos') || '[]');
+        if (data.length > 0 && typeof data[0] === 'string') return []; // Invalidate old format
+        return data;
+    } catch { return []; }
   });
 
-  // Negative Profile for XRAI (In-memory for session mostly, or simple persistence)
   const [negativeKeywords, setNegativeKeywords] = useState<Map<string, number>>(() => {
      try {
          const raw = JSON.parse(window.localStorage.getItem('negativeKeywords') || '[]');
-         // FIX: Explicitly type Map constructor to avoid inference issues.
          return new Map<string, number>(raw);
      } catch { return new Map(); }
   });
 
-  // Persistence
   useEffect(() => { localStorage.setItem('ngKeywords', JSON.stringify(ngKeywords)); }, [ngKeywords]);
   useEffect(() => { localStorage.setItem('ngChannels', JSON.stringify(ngChannels)); }, [ngChannels]);
-  useEffect(() => { localStorage.setItem('hiddenVideoIds', JSON.stringify(hiddenVideoIds)); }, [hiddenVideoIds]);
+  useEffect(() => { localStorage.setItem('hiddenVideos', JSON.stringify(hiddenVideos)); }, [hiddenVideos]);
   useEffect(() => { 
       localStorage.setItem('negativeKeywords', JSON.stringify(Array.from(negativeKeywords.entries()))); 
   }, [negativeKeywords]);
 
-  // Handlers
   const addNgKeyword = (k: string) => !ngKeywords.includes(k) && setNgKeywords(p => [...p, k]);
   const removeNgKeyword = (k: string) => setNgKeywords(p => p.filter(x => x !== k));
-  const addNgChannel = (id: string) => !ngChannels.includes(id) && setNgChannels(p => [...p, id]);
-  const removeNgChannel = (id: string) => setNgChannels(p => p.filter(x => x !== id));
-  const isNgChannel = (id: string) => ngChannels.includes(id);
 
-  const addHiddenVideo = (videoId: string, analyzeContent?: { title: string, channelName: string }) => {
-      if (!hiddenVideoIds.includes(videoId)) {
-          setHiddenVideoIds(prev => [...prev, videoId]);
+  const addNgChannel = (channel: BlockedChannel) => !ngChannels.some(c => c.id === channel.id) && setNgChannels(p => [...p, channel]);
+  const removeNgChannel = (id: string) => setNgChannels(p => p.filter(c => c.id !== id));
+  const isNgChannel = (id: string) => ngChannels.some(c => c.id === id);
+
+  const addHiddenVideo = (video: HiddenVideo) => {
+      if (!hiddenVideos.some(v => v.id === video.id)) {
+          setHiddenVideos(prev => [...prev, video]);
       }
       
-      // XRAI Negative Analysis
-      if (analyzeContent) {
-          const keywords = [
-              ...extractKeywords(analyzeContent.title),
-              ...extractKeywords(analyzeContent.channelName)
-          ];
-          
-          setNegativeKeywords(prev => {
-              const newMap = new Map<string, number>(prev);
-              keywords.forEach(k => {
-                  const current = newMap.get(k);
-                  newMap.set(k, (typeof current === 'number' ? current : 0) + 1);
-              });
-              return newMap;
-          });
-      }
+      const keywords = [ ...extractKeywords(video.title), ...extractKeywords(video.channelName) ];
+      setNegativeKeywords(prev => {
+          const newMap = new Map<string, number>(prev);
+          keywords.forEach(k => newMap.set(k, (newMap.get(k) || 0) + 1));
+          return newMap;
+      });
+  };
+
+  const unhideVideo = (videoId: string) => {
+    const videoToUnhide = hiddenVideos.find(v => v.id === videoId);
+    if (!videoToUnhide) return;
+
+    // Remove from hidden list
+    setHiddenVideos(prev => prev.filter(v => v.id !== videoId));
+
+    // Decrement negative keywords
+    const keywordsToDecrement = [
+        ...extractKeywords(videoToUnhide.title),
+        ...extractKeywords(videoToUnhide.channelName)
+    ];
+
+    setNegativeKeywords(prev => {
+        const newMap = new Map<string, number>(prev);
+        keywordsToDecrement.forEach(keyword => {
+            if (newMap.has(keyword)) {
+                const currentWeight = newMap.get(keyword)!;
+                if (currentWeight <= 1) newMap.delete(keyword);
+                else newMap.set(keyword, currentWeight - 1);
+            }
+        });
+        return newMap;
+    });
   };
   
   const removeNegativeProfileForVideos = (videos: Video[]) => {
     if (videos.length === 0) return;
-
-    // 1. Remove from hiddenVideoIds
     const idsToRemove = new Set(videos.map(v => v.id));
-    setHiddenVideoIds(prev => prev.filter(id => !idsToRemove.has(id)));
+    setHiddenVideos(prev => prev.filter(v => !idsToRemove.has(v.id)));
 
-    // 2. Decrement negativeKeywords
     const keywordsToDecrement = videos.flatMap(v => [
-        ...extractKeywords(v.title),
-        ...extractKeywords(v.channelName)
+        ...extractKeywords(v.title), ...extractKeywords(v.channelName)
     ]);
-
     setNegativeKeywords(prev => {
-        // FIX: Explicitly type the new Map to ensure currentWeight is a number, resolving TS errors.
         const newMap = new Map<string, number>(prev);
-        let wasModified = false;
         keywordsToDecrement.forEach(keyword => {
             if (newMap.has(keyword)) {
                 const currentWeight = newMap.get(keyword)!;
-                if (currentWeight <= 1) {
-                    newMap.delete(keyword);
-                } else {
-                    newMap.set(keyword, currentWeight - 1);
-                }
-                wasModified = true;
+                if (currentWeight <= 1) newMap.delete(keyword);
+                else newMap.set(keyword, currentWeight - 1);
             }
         });
-        return wasModified ? newMap : prev;
+        return newMap;
     });
   };
 
-  const isvideoHidden = (videoId: string) => hiddenVideoIds.includes(videoId);
+  const isvideoHidden = (videoId: string) => hiddenVideos.some(v => v.id === videoId);
 
-  // Import/Export Logic
   const exportUserData = () => {
     const data = {
       timestamp: new Date().toISOString(),
-      version: '2.1',
+      version: '3.0',
       subscriptions: JSON.parse(localStorage.getItem('subscribedChannels') || '[]'),
       history: JSON.parse(localStorage.getItem('videoHistory') || '[]'),
       playlists: JSON.parse(localStorage.getItem('playlists') || '[]'),
-      preferences: {
-        ngKeywords,
-        ngChannels,
-        hiddenVideoIds
-      }
+      preferences: { ngKeywords, ngChannels, hiddenVideos }
     };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -149,11 +167,8 @@ export const PreferenceProvider: React.FC<{ children: ReactNode }> = ({ children
       reader.onload = (e) => {
         try {
           const json = JSON.parse(e.target?.result as string);
-          if (!json.subscriptions || !json.history) {
-            throw new Error('Invalid backup file format');
-          }
+          if (!json.subscriptions || !json.history) throw new Error('Invalid backup file');
           
-          // Restore Data
           localStorage.setItem('subscribedChannels', JSON.stringify(json.subscriptions));
           localStorage.setItem('videoHistory', JSON.stringify(json.history));
           localStorage.setItem('playlists', JSON.stringify(json.playlists || []));
@@ -162,15 +177,17 @@ export const PreferenceProvider: React.FC<{ children: ReactNode }> = ({ children
             const p = json.preferences;
             localStorage.setItem('ngKeywords', JSON.stringify(p.ngKeywords || []));
             localStorage.setItem('ngChannels', JSON.stringify(p.ngChannels || []));
-            localStorage.setItem('hiddenVideoIds', JSON.stringify(p.hiddenVideoIds || []));
+            // Legacy support: hiddenVideoIds might be string[]
+            const hidden = Array.isArray(p.hiddenVideos) && p.hiddenVideos.every((item: any) => typeof item === 'object') 
+                ? p.hiddenVideos 
+                : [];
+            localStorage.setItem('hiddenVideos', JSON.stringify(hidden));
           }
 
-          // Refresh to load new data into contexts
           window.location.reload();
           resolve();
         } catch (err) {
-          console.error(err);
-          alert('ファイルの読み込みに失敗しました。正しいバックアップファイルを選択してください。');
+          alert('ファイルの読み込みに失敗しました。');
           reject(err);
         }
       };
@@ -180,9 +197,9 @@ export const PreferenceProvider: React.FC<{ children: ReactNode }> = ({ children
 
   return (
     <PreferenceContext.Provider value={{
-      ngKeywords, ngChannels, hiddenVideoIds, negativeKeywords,
+      ngKeywords, ngChannels, hiddenVideos, negativeKeywords,
       addNgKeyword, removeNgKeyword, addNgChannel, removeNgChannel, isNgChannel,
-      addHiddenVideo, isvideoHidden, removeNegativeProfileForVideos,
+      addHiddenVideo, unhideVideo, isvideoHidden, removeNegativeProfileForVideos,
       exportUserData, importUserData
     }}>
       {children}

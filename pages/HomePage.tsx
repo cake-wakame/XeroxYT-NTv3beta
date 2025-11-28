@@ -51,7 +51,8 @@ const HomePage: React.FC = () => {
     const { subscribedChannels } = useSubscription();
     const { searchHistory } = useSearchHistory();
     const { history: watchHistory } = useHistory();
-    const { ngKeywords, ngChannels, hiddenVideoIds, negativeKeywords, exportUserData, importUserData } = usePreference();
+    // FIX: Destructure 'hiddenVideos' instead of 'hiddenVideoIds' to match PreferenceContextType.
+    const { ngKeywords, ngChannels, hiddenVideos, negativeKeywords, exportUserData, importUserData } = usePreference();
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     // Update feed length ref whenever feed changes
@@ -85,7 +86,8 @@ const HomePage: React.FC = () => {
         try {
             const rawVideos = await getXraiRecommendations({
                 searchHistory, watchHistory, subscribedChannels,
-                ngKeywords, ngChannels, hiddenVideoIds, negativeKeywords,
+                // FIX: Pass 'hiddenVideos' to getXraiRecommendations as expected by RecommendationSource type.
+                ngKeywords, ngChannels, hiddenVideos, negativeKeywords,
                 page: pageNum
             });
             
@@ -137,7 +139,7 @@ const HomePage: React.FC = () => {
             setIsLoading(false);
             setIsFetchingMore(false);
         }
-    }, [subscribedChannels, searchHistory, watchHistory, ngKeywords, ngChannels, hiddenVideoIds, negativeKeywords]);
+    }, [subscribedChannels, searchHistory, watchHistory, ngKeywords, ngChannels, hiddenVideos, negativeKeywords]);
 
     useEffect(() => {
         setPage(1);

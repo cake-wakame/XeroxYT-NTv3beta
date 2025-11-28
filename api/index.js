@@ -371,27 +371,18 @@ app.get('/api/shorts', async (req, res) => {
 
     const channel = await youtube.getChannel(id);
 
-    // Shorts タブ取得（内部的には Tab オブジェクト）
-    const shortsTab = channel?.tabs?.find(t => t.title?.toLowerCase().includes("short"));
+    // ★ これが Shorts タブの正式取得方法
+    const shortsFeed = await channel.getShorts();
 
-    if (!shortsTab) {
-      return res.status(200).json({
-        shorts: [],
-        reason: "Shorts tab not found",
-        tabs: channel.tabs?.map(t => t.title) ?? []
-      });
-    }
-
-    // Shorts タブの中身を「加工せず」そのまま返す
-    const raw = await shortsTab.getVideos();
-
-    res.status(200).json(raw);
+    // ここを一切加工せず丸ごと返す（完全RAW）
+    res.status(200).json(shortsFeed);
 
   } catch (err) {
     console.error("Error in /api/shorts:", err);
     res.status(500).json({ error: err.message });
   }
 });
+
 
 
 

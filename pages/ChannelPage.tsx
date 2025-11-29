@@ -220,19 +220,13 @@ const ChannelPage: React.FC = () => {
                         </div>
                         <div className="flex-1 min-w-0 flex flex-col items-start pt-1">
                             <Link to={`/watch/${homeData.topVideo.videoId}`}>
-                                <h3 className="text-xl md:text-2xl font-bold mb-3 line-clamp-2 leading-tight text-black dark:text-white">{homeData.topVideo.title}</h3>
+                                <h3 className="text-xl md:text-2xl font-bold mb-3 leading-tight text-black dark:text-white">{homeData.topVideo.title}</h3>
                             </Link>
                             
                             <div className="text-sm text-yt-light-gray space-y-1 mb-4 font-medium">
                                 <p>再生回数: {homeData.topVideo.viewCount}</p>
                                 <p>投稿日: {homeData.topVideo.published}</p>
                             </div>
-
-                            {homeData.topVideo.description && (
-                                <div className="text-sm text-yt-light-gray line-clamp-4 whitespace-pre-wrap leading-relaxed">
-                                    {homeData.topVideo.description}
-                                </div>
-                            )}
                         </div>
                     </div>
                 )}
@@ -280,10 +274,6 @@ const ChannelPage: React.FC = () => {
                     <h1 className="text-2xl md:text-4xl font-bold mb-1 md:mb-2 tracking-tight">{channelDetails.name}</h1>
                     <div className="text-yt-light-gray text-sm md:text-base mb-3 flex flex-wrap justify-center md:justify-start gap-x-2">
                          <span>{channelDetails.handle}</span>
-                         <span>•</span>
-                         <span>登録者数 {channelDetails.subscriberCount}</span>
-                         <span>•</span>
-                         <span>動画 {channelDetails.videoCount} 本</span>
                     </div>
                     <p className="text-yt-light-gray text-sm line-clamp-1 mb-4 max-w-2xl cursor-pointer mx-auto md:mx-0" onClick={() => alert(channelDetails.description)}>
                         {channelDetails.description}

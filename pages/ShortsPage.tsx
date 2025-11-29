@@ -291,9 +291,9 @@ const ShortsPage: React.FC = () => {
             {context?.type === 'channel' && context.channelId && (
                 <Link
                     to={`/channel/${context.channelId}`}
-                    className="absolute top-4 left-1/2 -translate-x-1/2 z-20 px-4 py-2 bg-black/40 text-white text-sm font-semibold rounded-full backdrop-blur-sm hover:bg-black/60 transition-colors"
+                    className="absolute top-4 left-4 z-20 px-4 py-2 bg-black/40 text-white text-sm font-semibold rounded-full backdrop-blur-sm hover:bg-black/60 transition-colors"
                 >
-                    チャンネルページに戻る
+                    ← チャンネルページに戻る
                 </Link>
             )}
             <button

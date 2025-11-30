@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import ShortsPlayer from '../components/ShortsPlayer';
@@ -356,6 +357,7 @@ const ShortsPage: React.FC = () => {
                                     id={video.id}
                                     video={video} 
                                     playerParams={getParamsForVideo(index, video.id)} 
+                                    context={context}
                                     onLoad={(e) => {
                                         const iframe = e.currentTarget;
                                         if (index === currentIndex) {

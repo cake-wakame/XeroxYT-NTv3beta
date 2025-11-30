@@ -7,6 +7,42 @@ import relativeTime from 'dayjs/plugin/relativeTime';
 dayjs.extend(relativeTime);
 dayjs.locale('ja');
 
+// --- CACHING LOGIC ---
+const CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
+
+interface CacheItem {
+    data: any;
+    expiry: number;
+}
+
+const cache = {
+    get: (key: string): any | null => {
+        try {
+            const itemStr = localStorage.getItem(key);
+            if (!itemStr) return null;
+            const item: CacheItem = JSON.parse(itemStr);
+            if (new Date().getTime() > item.expiry) {
+                localStorage.removeItem(key);
+                return null;
+            }
+            return item.data;
+        } catch (error) {
+            console.error(`Cache read error for key "${key}":`, error);
+            return null;
+        }
+    },
+    set: (key: string, value: any, ttl: number = CACHE_TTL): void => {
+        try {
+            if (value === undefined) return;
+            const item: CacheItem = { data: value, expiry: new Date().getTime() + ttl };
+            localStorage.setItem(key, JSON.stringify(item));
+        } catch (error) {
+            console.error(`Cache write error for key "${key}":`, error);
+        }
+    },
+};
+
+
 // --- HELPER FUNCTIONS ---
 
 export const formatJapaneseNumber = (raw: number | string): string => {
@@ -254,17 +290,24 @@ export const mapHomeVideoToVideo = (homeVideo: HomeVideo, channelData?: Partial<
 };
 
 export async function getChannelHome(channelId: string): Promise<ChannelHomeData> {
+    const cacheKey = `channel-home-${channelId}`;
+    const cachedData = cache.get(cacheKey);
+    if (cachedData) return Promise.resolve(cachedData);
+
     const useProxy = localStorage.getItem('useChannelHomeProxy') !== 'false';
     
+    let data;
     if (useProxy) {
-        return await apiFetch(`channel-home-proxy?id=${channelId}`);
+        data = await apiFetch(`channel-home-proxy?id=${channelId}`);
     } else {
         const response = await fetch(`https://siawaseok.duckdns.org/api/channel/${channelId}`);
         if (!response.ok) {
             throw new Error(`Failed to fetch channel home data: ${response.status}`);
         }
-        return await response.json();
+        data = await response.json();
     }
+    cache.set(cacheKey, data);
+    return data;
 }
 
 // --- EXPORTED API FUNCTIONS ---
@@ -323,6 +366,10 @@ export async function getExternalRelatedVideos(videoId: string): Promise<Video[]
 }
 
 export async function getVideoDetails(videoId: string): Promise<VideoDetails> {
+    const cacheKey = `video-details-${videoId}`;
+    const cachedData = cache.get(cacheKey);
+    if (cachedData) return Promise.resolve(cachedData);
+
     const data = await apiFetch(`video?id=${videoId}`);
     
     if (data.playability_status?.status !== 'OK' && !data.primary_info) {
@@ -411,7 +458,7 @@ export async function getVideoDetails(videoId: string): Promise<VideoDetails> {
         .map(mapYoutubeiVideoToVideo)
         .filter((v): v is Video => v !== null && v.id.length === 11);
 
-    return {
+    const details: VideoDetails = {
         id: videoId,
         thumbnailUrl: basic?.thumbnail?.[0]?.url ?? `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
         duration: formatDuration(basic?.duration ?? 0),
@@ -429,6 +476,9 @@ export async function getVideoDetails(videoId: string): Promise<VideoDetails> {
         collaborators: collaborators.length > 0 ? collaborators : undefined,
         relatedVideos: relatedVideos,
     };
+
+    cache.set(cacheKey, details);
+    return details;
 }
 
 export async function getComments(videoId: string): Promise<Comment[]> {
@@ -447,6 +497,10 @@ export async function getVideosByIds(videoIds: string[]): Promise<Video[]> {
 }
 
 export async function getChannelDetails(channelId: string): Promise<ChannelDetails> {
+    const cacheKey = `channel-details-${channelId}`;
+    const cachedData = cache.get(cacheKey);
+    if (cachedData) return Promise.resolve(cachedData);
+
     const data = await apiFetch(`channel?id=${channelId}`);
     const channel = data.channel;
     if (!channel) throw new Error(`Channel with ID ${channelId} not found.`);
@@ -461,7 +515,7 @@ export async function getChannelDetails(channelId: string): Promise<ChannelDetai
         avatarUrl = channel.avatar.url;
     }
 
-    return {
+    const details: ChannelDetails = {
         id: channelId,
         name: channel.name ?? 'No Name',
         avatarUrl: avatarUrl,
@@ -471,6 +525,8 @@ export async function getChannelDetails(channelId: string): Promise<ChannelDetai
         videoCount: parseInt(channel.videoCount?.replace(/,/g, '') ?? '0'),
         handle: channel.name,
     };
+    cache.set(cacheKey, details);
+    return details;
 }
 
 export async function getChannelVideos(channelId: string, pageToken = '1'): Promise<{ videos: Video[], nextPageToken?: string }> {
@@ -548,14 +604,22 @@ export async function getChannelPlaylists(channelId: string): Promise<{ playlist
 }
 
 export async function getPlaylistDetails(playlistId: string): Promise<PlaylistDetails> {
+    const cacheKey = `playlist-details-${playlistId}`;
+    const cachedData = cache.get(cacheKey);
+    if (cachedData) return Promise.resolve(cachedData);
+
     const data = await apiFetch(`playlist?id=${playlistId}`);
     if (!data.info?.id) throw new Error(`Playlist with ID ${playlistId} not found.`);
     const videos = (data.videos || []).map(mapYoutubeiVideoToVideo).filter((v): v is Video => v !== null);
-    return {
+    
+    const details = {
         title: data.info.title,
         author: data.info.author?.name ?? '不明',
         authorId: data.info.author?.id ?? '',
         description: data.info.description ?? '',
         videos: videos
     };
+
+    cache.set(cacheKey, details);
+    return details;
 }

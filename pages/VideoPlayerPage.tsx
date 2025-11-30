@@ -41,6 +41,9 @@ const VideoPlayerPage: React.FC = () => {
     const [isCollaboratorMenuOpen, setIsCollaboratorMenuOpen] = useState(false);
     const collaboratorMenuRef = useRef<HTMLDivElement>(null);
     
+    // Use ref to hold player instance to prevent stale closure issues and unnecessary re-renders
+    const playerInstanceRef = useRef<any>(null);
+
     const [isShuffle, setIsShuffle] = useState(searchParams.get('shuffle') === '1');
     const [isLoop, setIsLoop] = useState(searchParams.get('loop') === '1');
 
@@ -90,11 +93,26 @@ const VideoPlayerPage: React.FC = () => {
         }
     }, [playlistId, isShuffle, isLoop, shuffledPlaylistVideos, playlistVideos, videoId, navigate, searchParams]);
 
-
+    // Keep the latest callback in a ref to access it inside the player event listener
+    const onPlayerStateChangeRef = useRef<(event: any) => void>(() => {});
     useEffect(() => {
-        const setupPlayer = () => {
-             if (videoId && playerRef.current && !player) {
-                const newPlayer = new window.YT.Player(playerRef.current, {
+        onPlayerStateChangeRef.current = onPlayerStateChange;
+    }, [onPlayerStateChange]);
+
+    // Initialize or Update Player
+    useEffect(() => {
+        const loadOrUpdatePlayer = () => {
+            if (!videoId) return;
+
+            // If player instance exists, just load the new video by ID
+            if (playerInstanceRef.current && typeof playerInstanceRef.current.loadVideoById === 'function') {
+                playerInstanceRef.current.loadVideoById(videoId);
+                return;
+            }
+
+            // Create new player if it doesn't exist and DOM is ready
+            if (window.YT && window.YT.Player && playerRef.current) {
+                playerInstanceRef.current = new window.YT.Player(playerRef.current, {
                     videoId: videoId,
                     playerVars: {
                         autoplay: 1,
@@ -102,32 +120,39 @@ const VideoPlayerPage: React.FC = () => {
                         rel: 0,
                     },
                     events: {
-                        'onStateChange': onPlayerStateChange
+                        'onStateChange': (event: any) => onPlayerStateChangeRef.current(event)
                     }
                 });
-                setPlayer(newPlayer);
+                setPlayer(playerInstanceRef.current);
             }
         };
 
         if (!window.YT) {
             const tag = document.createElement('script');
             tag.src = "https://www.youtube.com/iframe_api";
-            window.onYouTubeIframeAPIReady = () => {
-                setupPlayer();
-            };
+            // Handle async load
+            window.onYouTubeIframeAPIReady = loadOrUpdatePlayer;
             const firstScriptTag = document.getElementsByTagName('script')[0];
             firstScriptTag.parentNode?.insertBefore(tag, firstScriptTag);
         } else {
-            setupPlayer();
+            loadOrUpdatePlayer();
         }
+    }, [videoId]); // Run whenever videoId changes
 
+    // Cleanup on unmount only
+    useEffect(() => {
         return () => {
-            if (player) {
-                player.destroy();
+            if (playerInstanceRef.current) {
+                try {
+                    playerInstanceRef.current.destroy();
+                } catch(e) {
+                    console.warn("Player destroy failed", e);
+                }
+                playerInstanceRef.current = null;
                 setPlayer(null);
             }
         };
-    }, [videoId, onPlayerStateChange]);
+    }, []);
 
 
     useEffect(() => {

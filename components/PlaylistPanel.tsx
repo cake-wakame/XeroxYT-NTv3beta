@@ -1,3 +1,4 @@
+
 import React, { useRef } from 'react';
 // FIX: Use named imports for react-router-dom components and hooks.
 import { Link, useSearchParams } from 'react-router-dom';

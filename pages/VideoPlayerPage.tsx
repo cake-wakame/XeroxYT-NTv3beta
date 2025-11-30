@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 // FIX: Use named imports for react-router-dom components and hooks.
 import { useParams, Link, useSearchParams, useNavigate } from 'react-router-dom';
@@ -127,16 +128,6 @@ const VideoPlayerPage: React.FC = () => {
             }
         };
     }, [videoId, onPlayerStateChange]);
-    
-    useEffect(() => {
-        if (player && playlistId) {
-            const videoIdList = (isShuffle ? shuffledPlaylistVideos : playlistVideos).map(v => v.id);
-            const currentIndex = videoIdList.findIndex(id => id === videoId);
-            if (currentIndex !== -1) {
-                player.loadPlaylist(videoIdList, currentIndex);
-            }
-        }
-    }, [player, playlistId, isShuffle, shuffledPlaylistVideos, playlistVideos, videoId]);
 
 
     useEffect(() => {

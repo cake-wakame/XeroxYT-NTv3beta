@@ -319,18 +319,18 @@ const ShortsPage: React.FC = () => {
 
     return (
         <div className={`shorts-container flex justify-center items-center h-[calc(100vh-3.5rem)] w-full overflow-hidden relative ${theme.includes('glass') ? 'bg-transparent' : 'bg-yt-white dark:bg-yt-black'}`}>
-            
-            {/* Previous Button - Fixed Position Relative to Center */}
-            <button
-                onClick={handlePrev}
-                disabled={currentIndex === 0}
-                className={`fixed left-4 md:left-[calc(50%-380px)] top-1/2 -translate-y-1/2 z-50 p-4 rounded-full bg-black/40 hover:bg-black/60 text-white backdrop-blur-md transition-all shadow-xl border border-white/10 hidden md:flex items-center justify-center group ${currentIndex === 0 ? 'opacity-0 cursor-not-allowed' : 'opacity-80 hover:opacity-100 hover:scale-110 active:scale-95'}`}
-                aria-label="前の動画"
-            >
-                <ChevronUpIcon />
-            </button>
-
             <div className="relative flex items-center justify-center gap-4 h-full w-full max-w-7xl mx-auto px-2 sm:px-4">
+                
+                {/* Previous Button */}
+                <button
+                    onClick={handlePrev}
+                    disabled={currentIndex === 0}
+                    className={`absolute left-2 md:left-4 lg:left-8 top-1/2 -translate-y-1/2 z-30 p-4 rounded-full bg-black/40 hover:bg-black/60 text-white backdrop-blur-md transition-all shadow-xl border border-white/10 hidden md:flex items-center justify-center group ${currentIndex === 0 ? 'opacity-0 cursor-not-allowed' : 'opacity-80 hover:opacity-100 hover:scale-110 active:scale-95'}`}
+                    aria-label="前の動画"
+                >
+                    <ChevronUpIcon />
+                </button>
+
                 {/* Main Player Container - Renders list but hides non-active */}
                 <div className="relative h-[85vh] max-h-[900px] aspect-[9/16] rounded-2xl shadow-2xl overflow-hidden bg-black flex-shrink-0 z-10">
                      {videos.map((video, index) => {
@@ -408,17 +408,17 @@ const ShortsPage: React.FC = () => {
                          </div>
                     </div>
                 )}
+                
+                {/* Next Button */}
+                <button
+                    onClick={handleNext}
+                    disabled={currentIndex >= videos.length - 1 && !isFetchingMore}
+                    className={`absolute right-2 md:right-4 lg:right-8 top-1/2 -translate-y-1/2 z-30 p-4 rounded-full bg-black/40 hover:bg-black/60 text-white backdrop-blur-md transition-all shadow-xl border border-white/10 hidden md:flex items-center justify-center group ${currentIndex >= videos.length - 1 && !isFetchingMore ? 'opacity-0 cursor-not-allowed' : 'opacity-80 hover:opacity-100 hover:scale-110 active:scale-95'}`}
+                    title="次の動画"
+                >
+                    <ChevronDownIcon />
+                </button>
             </div>
-
-            {/* Next Button - Fixed Position Relative to Center */}
-            <button
-                onClick={handleNext}
-                disabled={currentIndex >= videos.length - 1 && !isFetchingMore}
-                className={`fixed right-4 md:right-[calc(50%-380px)] top-1/2 -translate-y-1/2 z-50 p-4 rounded-full bg-black/40 hover:bg-black/60 text-white backdrop-blur-md transition-all shadow-xl border border-white/10 hidden md:flex items-center justify-center group ${currentIndex >= videos.length - 1 && !isFetchingMore ? 'opacity-0 cursor-not-allowed' : 'opacity-80 hover:opacity-100 hover:scale-110 active:scale-95'}`}
-                title="次の動画"
-            >
-                <ChevronDownIcon />
-            </button>
         </div>
     );
 };

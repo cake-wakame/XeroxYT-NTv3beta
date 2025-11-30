@@ -89,7 +89,7 @@ const VideoCard: React.FC<VideoCardProps> = memo(({ video, hideChannelInfo = fal
   if (isHidden) return null;
 
   return (
-    <div className="flex flex-col group cursor-pointer transition-transform duration-300 ease-in-out sm:hover:scale-[1.03] sm:hover:z-10 relative">
+    <div className="flex flex-col group cursor-pointer relative">
       <Link to={`/watch/${video.id}`}>
         <div className="relative rounded-xl overflow-hidden aspect-video bg-yt-light dark:bg-yt-dark-gray shadow-sm group-hover:shadow-xl transition-shadow duration-300">
             <img 
@@ -174,7 +174,7 @@ const VideoCard: React.FC<VideoCardProps> = memo(({ video, hideChannelInfo = fal
         <button 
             ref={settingsTriggerRef}
             onClick={toggleSettingsMenu}
-            className="absolute top-0 right-[-8px] p-1 transition-opacity rounded-full hover:bg-yt-spec-light-10 dark:hover:bg-yt-spec-10"
+            className="absolute top-0 right-[-8px] p-1 transition-opacity rounded-full hover:bg-yt-spec-light-10 dark:hover:bg-yt-spec-10 opacity-0 group-hover:opacity-100"
         >
             <div className="transform rotate-90">
                 <MoreIconHorizontal />

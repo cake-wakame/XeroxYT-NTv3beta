@@ -2,7 +2,6 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { defineConfig, loadEnv } from 'vite';
 
-// FIX: Get __dirname in an ES module environment to avoid using process.cwd(), which had typing issues.
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig(({ mode }) => {
@@ -14,9 +13,17 @@ export default defineConfig(({ mode }) => {
       },
       resolve: {
         alias: {
-          // FIX: '__dirname' is not available in ESM modules. Using 'process.cwd()' to get the project root.
           '@': path.resolve(__dirname),
         }
+      },
+      build: {
+        outDir: 'dist',
+        emptyOutDir: true
+      },
+      server: {
+        host: '0.0.0.0',
+        port: 5000,
+        allowedHosts: true
       }
     };
 });

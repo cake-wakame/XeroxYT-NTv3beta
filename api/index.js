@@ -1,7 +1,17 @@
 import express from "express";
 import { Innertube } from "youtubei.js";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
+
+// 本番環境で静的ファイルを配信
+if (process.env.NODE_ENV === 'production') {
+  app.use(express.static(path.join(__dirname, '../dist')));
+}
 
 // CORS設定
 app.use((req, res, next) => {
@@ -9,6 +19,11 @@ app.use((req, res, next) => {
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   next();
+});
+
+// ヘルスチェック用エンドポイント
+app.get('/api/health', (req, res) => {
+  res.status(200).json({ status: 'ok', timestamp: Date.now() });
 });
 
 // YouTubeクライアントの作成ヘルパー
@@ -544,8 +559,15 @@ app.get('/api/thumbnail/:videoId', async (req, res) => {
   }
 });
 
+// 本番環境でSPA用のフォールバック
+if (process.env.NODE_ENV === 'production') {
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, '../dist/index.html'));
+  });
+}
+
 const PORT = process.env.PORT || 3000;
-if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
+if (!process.env.VERCEL) {
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`API Server running on port ${PORT}`);
   });
